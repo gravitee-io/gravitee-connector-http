@@ -531,6 +531,17 @@
       }
     }
   },
+  "additionalProperties": false,
+  "patternProperties": {
+    "backup": true,
+    "healthcheck": true,
+    "inherit": true,
+    "name": true,
+    "target": true,
+    "tenants": true,
+    "type": true,
+    "weight": true
+  },
   "x-schema-form": {
     "errors": {
       "proxy": {

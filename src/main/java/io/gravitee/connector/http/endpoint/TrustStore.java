@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import io.gravitee.connector.http.endpoint.jks.JKSTrustStore;
+import io.gravitee.connector.http.endpoint.none.NoneTrustStore;
 import io.gravitee.connector.http.endpoint.pem.PEMTrustStore;
 import io.gravitee.connector.http.endpoint.pkcs12.PKCS12TrustStore;
 import java.io.Serializable;
@@ -33,6 +34,7 @@ import java.io.Serializable;
         @JsonSubTypes.Type(name = "JKS", value = JKSTrustStore.class),
         @JsonSubTypes.Type(name = "PEM", value = PEMTrustStore.class),
         @JsonSubTypes.Type(name = "PKCS12", value = PKCS12TrustStore.class),
+        @JsonSubTypes.Type(value = NoneTrustStore.class),
         // legacy support
         @JsonSubTypes.Type(name = "jks", value = JKSTrustStore.class),
         @JsonSubTypes.Type(name = "pem", value = PEMTrustStore.class),

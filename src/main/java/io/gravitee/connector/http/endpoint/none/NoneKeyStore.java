@@ -13,26 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.connector.http.endpoint;
+package io.gravitee.connector.http.endpoint.none;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import io.gravitee.connector.http.endpoint.KeyStore;
+import io.gravitee.connector.http.endpoint.KeyStoreType;
 
-/**
- * @author David BRASSELY (david.brassely at graviteesource.com)
- * @author GraviteeSource Team
- */
-public enum KeyStoreType {
-    PEM,
-    PKCS12,
-    JKS,
-    None;
+public class NoneKeyStore extends KeyStore {
 
-    @JsonCreator
-    public static KeyStoreType forValues(@JsonProperty("type") String type) {
-        if (type.isEmpty()) {
-            return None;
-        }
-        return KeyStoreType.valueOf(type);
+    public NoneKeyStore(KeyStoreType type) {
+        super(type);
     }
 }

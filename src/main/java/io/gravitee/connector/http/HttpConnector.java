@@ -15,12 +15,12 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.environment.Configuration;
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.ws.WebSocketConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.node.api.configuration.Configuration;
 import io.netty.handler.codec.http.HttpHeaderValues;
 
 /**
@@ -29,8 +29,8 @@ import io.netty.handler.codec.http.HttpHeaderValues;
  */
 public class HttpConnector extends AbstractHttpConnector<HttpEndpoint> {
 
-    public HttpConnector(HttpEndpoint endpoint, Configuration environmentConfiguration) {
-        super(endpoint, environmentConfiguration);
+    public HttpConnector(HttpEndpoint endpoint, Configuration configuration) {
+        super(endpoint, configuration);
     }
 
     @Override

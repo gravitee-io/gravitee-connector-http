@@ -15,7 +15,6 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.environment.Configuration;
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.connector.api.AbstractConnector;
@@ -34,6 +33,7 @@ import io.gravitee.connector.http.endpoint.pkcs12.PKCS12TrustStore;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.node.api.configuration.Configuration;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
@@ -71,7 +71,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     protected static final int SECURE_PORT = 443;
 
     protected final E endpoint;
-    private final Configuration environmentConfiguration;
+    private final Configuration configuration;
 
     private HttpClientOptions options;
 
@@ -86,9 +86,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         }
     };
 
-    public AbstractHttpConnector(E endpoint, Configuration environmentConfiguration) {
+    public AbstractHttpConnector(E endpoint, Configuration configuration) {
         this.endpoint = endpoint;
-        this.environmentConfiguration = environmentConfiguration;
+        this.configuration = configuration;
     }
 
     private final Map<Thread, HttpClient> httpClients = new ConcurrentHashMap<>();
@@ -424,26 +424,26 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         ProxyOptions proxyOptions = new ProxyOptions();
 
         // System proxy must be well configured. Check that this is the case.
-        if (environmentConfiguration.containsProperty("system.proxy.host")) {
-            proxyOptions.setHost(environmentConfiguration.getProperty("system.proxy.host"));
+        if (configuration.containsProperty("system.proxy.host")) {
+            proxyOptions.setHost(configuration.getProperty("system.proxy.host"));
         } else {
             errors.append("'system.proxy.host' ");
         }
 
         try {
-            proxyOptions.setPort(Integer.parseInt(Objects.requireNonNull(environmentConfiguration.getProperty("system.proxy.port"))));
+            proxyOptions.setPort(Integer.parseInt(Objects.requireNonNull(configuration.getProperty("system.proxy.port"))));
         } catch (Exception e) {
-            errors.append("'system.proxy.port' [").append(environmentConfiguration.getProperty("system.proxy.port")).append("] ");
+            errors.append("'system.proxy.port' [").append(configuration.getProperty("system.proxy.port")).append("] ");
         }
 
         try {
-            proxyOptions.setType(ProxyType.valueOf(environmentConfiguration.getProperty("system.proxy.type")));
+            proxyOptions.setType(ProxyType.valueOf(configuration.getProperty("system.proxy.type")));
         } catch (Exception e) {
-            errors.append("'system.proxy.type' [").append(environmentConfiguration.getProperty("system.proxy.type")).append("] ");
+            errors.append("'system.proxy.type' [").append(configuration.getProperty("system.proxy.type")).append("] ");
         }
 
-        proxyOptions.setUsername(environmentConfiguration.getProperty("system.proxy.username"));
-        proxyOptions.setPassword(environmentConfiguration.getProperty("system.proxy.password"));
+        proxyOptions.setUsername(configuration.getProperty("system.proxy.username"));
+        proxyOptions.setPassword(configuration.getProperty("system.proxy.password"));
 
         if (errors.length() == 0) {
             return proxyOptions;

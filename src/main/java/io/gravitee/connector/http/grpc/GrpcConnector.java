@@ -15,10 +15,10 @@
  */
 package io.gravitee.connector.http.grpc;
 
-import io.gravitee.common.environment.Configuration;
 import io.gravitee.connector.api.EndpointException;
 import io.gravitee.connector.http.AbstractHttpConnector;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.node.api.configuration.Configuration;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpVersion;
 
@@ -28,8 +28,8 @@ import io.vertx.core.http.HttpVersion;
  */
 public class GrpcConnector extends AbstractHttpConnector<GrpcEndpoint> {
 
-    public GrpcConnector(GrpcEndpoint endpoint, Configuration environment) {
-        super(endpoint, environment);
+    public GrpcConnector(GrpcEndpoint endpoint, Configuration configuration) {
+        super(endpoint, configuration);
     }
 
     @Override

@@ -50,11 +50,11 @@ public class HttpConnectorFactory implements ConnectorFactory<Connector<Connecti
         if (type.equalsIgnoreCase("GRPC")) {
             return new GrpcConnector(
                 new GrpcEndpoint(httpEndpoint.type(), httpEndpoint.name(), httpEndpoint.target()),
-                builder.getEnvironmentConfiguration()
+                builder.getConfiguration()
             );
         }
 
-        return new HttpConnector(httpEndpoint, builder.getEnvironmentConfiguration());
+        return new HttpConnector(httpEndpoint, builder.getConfiguration());
     }
 
     private HttpEndpoint resolve(final HttpEndpoint httpEndpoint, final ConnectorContext context) {

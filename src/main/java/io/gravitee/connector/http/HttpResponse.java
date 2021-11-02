@@ -17,6 +17,7 @@ package io.gravitee.connector.http;
 
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.connector.api.Response;
+import io.gravitee.connector.api.response.AbstractResponse;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http2.HttpFrame;
@@ -27,10 +28,8 @@ import io.vertx.core.http.HttpClientResponse;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class HttpResponse implements Response {
+public class HttpResponse extends AbstractResponse {
 
-    private Handler<Buffer> bodyHandler;
-    private Handler<Void> endHandler;
     private Handler<HttpFrame> frameHandler;
 
     private final HttpHeaders httpHeaders = new HttpHeaders();
@@ -54,26 +53,6 @@ public class HttpResponse implements Response {
     @Override
     public HttpHeaders headers() {
         return httpHeaders;
-    }
-
-    @Override
-    public Response bodyHandler(Handler<Buffer> bodyHandler) {
-        this.bodyHandler = bodyHandler;
-        return this;
-    }
-
-    Handler<Buffer> bodyHandler() {
-        return this.bodyHandler;
-    }
-
-    @Override
-    public Response endHandler(Handler<Void> endHandler) {
-        this.endHandler = endHandler;
-        return this;
-    }
-
-    Handler<Void> endHandler() {
-        return this.endHandler;
     }
 
     @Override

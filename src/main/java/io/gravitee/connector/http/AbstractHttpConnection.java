@@ -37,7 +37,7 @@ public abstract class AbstractHttpConnection<E extends HttpEndpoint> extends io.
         int port,
         String host,
         String uri,
-        Handler<Void> connectionHandler,
+        Handler<AbstractHttpConnection> connectionHandler,
         Handler<Void> tracker
     );
 

@@ -83,7 +83,14 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     @Override
-    public void connect(HttpClient httpClient, int port, String host, String uri, Handler<Void> connectionHandler, Handler<Void> tracker) {
+    public void connect(
+        HttpClient httpClient,
+        int port,
+        String host,
+        String uri,
+        Handler<AbstractHttpConnection> connectionHandler,
+        Handler<Void> tracker
+    ) {
         // Remove HOP-by-HOP headers
         for (CharSequence header : HOP_HEADERS) {
             request.headers().remove(header.toString());
@@ -114,7 +121,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                                 }
                             }
                         );
-                        connectionHandler.handle(null);
+                        connectionHandler.handle(HttpConnection.this);
                     } else {
                         connectionHandler.handle(null);
                         handleException(event.cause());

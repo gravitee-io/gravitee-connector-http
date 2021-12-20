@@ -15,7 +15,6 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.HttpHeadersValues;
 import io.gravitee.connector.api.Connection;
 import io.gravitee.connector.api.Response;
@@ -24,6 +23,7 @@ import io.gravitee.connector.api.response.ClientConnectionTimeoutResponse;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.WriteStream;
@@ -172,12 +172,6 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             response = createProxyResponse(clientResponse);
 
-            // Copy HTTP headers
-            clientResponse
-                .headers()
-                .names()
-                .forEach(headerName -> response.headers().put(headerName, clientResponse.headers().getAll(headerName)));
-
             response.pause();
 
             response.cancelHandler(tracker);
@@ -188,11 +182,6 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             // Signal end of the response
             clientResponse.endHandler(
                 event -> {
-                    // Write trailing headers to client response
-                    if (!clientResponse.trailers().isEmpty()) {
-                        clientResponse.trailers().forEach(header -> response.trailers().set(header.getKey(), header.getValue()));
-                    }
-
                     response.endHandler().handle(null);
                     tracker.handle(null);
                 }
@@ -302,16 +291,16 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         // Check chunk flag on the request if there are some content to push and if transfer_encoding is set
         // with chunk value
         if (content) {
-            String encoding = headers.getFirst(HttpHeaders.TRANSFER_ENCODING);
+            String encoding = headers.getFirst(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING);
             if (encoding != null && encoding.contains(HttpHeadersValues.TRANSFER_ENCODING_CHUNKED)) {
                 httpClientRequest.setChunked(true);
             }
         } else {
-            request.headers().remove(HttpHeaders.TRANSFER_ENCODING);
+            request.headers().remove(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING);
         }
 
         // Copy headers to upstream
-        request.headers().forEach(httpClientRequest::putHeader);
+        request.headers().forEach(entry -> httpClientRequest.putHeader(entry.getKey(), entry.getValue()));
     }
 
     @Override

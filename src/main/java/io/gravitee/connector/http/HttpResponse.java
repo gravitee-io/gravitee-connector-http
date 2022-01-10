@@ -15,11 +15,12 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.connector.api.Response;
 import io.gravitee.connector.api.response.AbstractResponse;
+import io.gravitee.connector.http.vertx.VertxHttpHeaders;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.vertx.core.http.HttpClientResponse;
@@ -32,12 +33,12 @@ public class HttpResponse extends AbstractResponse {
 
     private Handler<HttpFrame> frameHandler;
 
-    private final HttpHeaders httpHeaders = new HttpHeaders();
-    private HttpHeaders trailers;
+    private final HttpHeaders httpHeaders;
     private final HttpClientResponse httpClientResponse;
 
     public HttpResponse(final HttpClientResponse httpClientResponse) {
         this.httpClientResponse = httpClientResponse;
+        this.httpHeaders = new VertxHttpHeaders(this.httpClientResponse.headers());
     }
 
     @Override
@@ -81,10 +82,6 @@ public class HttpResponse extends AbstractResponse {
 
     @Override
     public HttpHeaders trailers() {
-        if (trailers == null) {
-            trailers = new HttpHeaders();
-        }
-
-        return trailers;
+        return new VertxHttpHeaders(this.httpClientResponse.trailers());
     }
 }

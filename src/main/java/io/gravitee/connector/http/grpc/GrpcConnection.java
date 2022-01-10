@@ -15,11 +15,11 @@
  */
 package io.gravitee.connector.http.grpc;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.MediaType;
 import io.gravitee.connector.http.HttpConnection;
 import io.gravitee.connector.http.HttpResponse;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
@@ -49,8 +49,8 @@ public class GrpcConnection extends HttpConnection<HttpResponse> {
                     .setPort(port)
                     .setURI(uri)
                     // Ensure required gRPC headers
-                    .putHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_GRPC)
-                    .putHeader(io.gravitee.common.http.HttpHeaders.TE, GRPC_TRAILERS_TE)
+                    .putHeader(HttpHeaderNames.CONTENT_TYPE, MediaType.APPLICATION_GRPC)
+                    .putHeader(HttpHeaderNames.TE, GRPC_TRAILERS_TE)
                     .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
                     .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects())
             )

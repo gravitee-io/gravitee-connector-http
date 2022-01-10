@@ -333,7 +333,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     @Override
     protected void doStop() throws Exception {
-        LOGGER.info(
+        LOGGER.debug(
             "Graceful shutdown of HTTP Client for endpoint[{}] target[{}] requests[{}]",
             endpoint.name(),
             endpoint.target(),
@@ -368,8 +368,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     }
 
     private void printHttpClientConfiguration() {
-        LOGGER.info("Create HTTP connector with configuration: ");
-        LOGGER.info(
+        LOGGER.debug("Create HTTP connector with configuration: ");
+        LOGGER.debug(
             "\t" +
             options.getProtocolVersion() +
             " {" +
@@ -404,11 +404,11 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         );
 
         if (options.isSsl()) {
-            LOGGER.info("\tSSL {" + "TrustAll='" + options.isTrustAll() + '\'' + ", VerifyHost='" + options.isVerifyHost() + '\'' + '}');
+            LOGGER.debug("\tSSL {" + "TrustAll='" + options.isTrustAll() + '\'' + ", VerifyHost='" + options.isVerifyHost() + '\'' + '}');
         }
 
         if (options.getProxyOptions() != null) {
-            LOGGER.info(
+            LOGGER.debug(
                 "\tProxy {" +
                 "Type='" +
                 options.getProxyOptions().getType() +

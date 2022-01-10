@@ -15,19 +15,23 @@
  */
 package io.gravitee.connector.http.ws;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.connector.api.Response;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.stream.ReadStream;
 
+/**
+ * @author David BRASSELY (david.brassely at graviteesource.com)
+ * @author GraviteeSource Team
+ */
 public class SwitchProtocolProxyResponse implements Response {
 
     private Handler<Buffer> bodyHandler;
     private Handler<Void> endHandler;
 
-    private final HttpHeaders httpHeaders = new HttpHeaders();
+    private final HttpHeaders httpHeaders = HttpHeaders.create();
 
     @Override
     public int status() {

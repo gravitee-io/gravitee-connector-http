@@ -120,11 +120,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
                 endpoint
                     .getHeaders()
-                    .forEach(
-                        header -> {
-                            request.headers().add(header.getName(), header.getValue());
-                        }
-                    );
+                    .forEach(header -> {
+                        request.headers().add(header.getName(), header.getValue());
+                    });
             }
 
             // Create the connector to the upstream
@@ -160,19 +158,17 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     private String appendQueryParameters(String uri, MultiValueMap<String, String> parameters) {
         if (parameters != null && !parameters.isEmpty()) {
             StringJoiner parametersAsString = new StringJoiner(URI_PARAM_SEPARATOR);
-            parameters.forEach(
-                (paramName, paramValues) -> {
-                    if (paramValues != null) {
-                        for (String paramValue : paramValues) {
-                            if (paramValue == null) {
-                                parametersAsString.add(paramName);
-                            } else {
-                                parametersAsString.add(paramName + URI_PARAM_VALUE_SEPARATOR_CHAR + paramValue);
-                            }
+            parameters.forEach((paramName, paramValues) -> {
+                if (paramValues != null) {
+                    for (String paramValue : paramValues) {
+                        if (paramValue == null) {
+                            parametersAsString.add(paramName);
+                        } else {
+                            parametersAsString.add(paramName + URI_PARAM_VALUE_SEPARATOR_CHAR + paramValue);
                         }
                     }
                 }
-            );
+            });
 
             if (uri.contains(URI_QUERY_DELIMITER_CHAR_SEQUENCE)) {
                 return uri + URI_PARAM_SEPARATOR_CHAR + parametersAsString.toString();
@@ -352,15 +348,13 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
         httpClients
             .values()
-            .forEach(
-                httpClient -> {
-                    try {
-                        httpClient.close();
-                    } catch (IllegalStateException ise) {
-                        LOGGER.warn(ise.getMessage());
-                    }
+            .forEach(httpClient -> {
+                try {
+                    httpClient.close();
+                } catch (IllegalStateException ise) {
+                    LOGGER.warn(ise.getMessage());
                 }
-            );
+            });
     }
 
     private Function<Thread, HttpClient> createHttpClient() {

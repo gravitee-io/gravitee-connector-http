@@ -29,13 +29,15 @@
 
     <groupId>io.gravitee.connector</groupId>
     <artifactId>gravitee-connector-http</artifactId>
-    <version>1.2.0-SNAPSHOT</version>
+    <version>1.2.0</version>
 
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
         <gravitee-bom.version>1.4</gravitee-bom.version>
         <gravitee-connector-api.version>1.1.0</gravitee-connector-api.version>
+        <!-- Property used by the publication job in CI-->
+        <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
     </properties>
 
     <dependencyManagement>

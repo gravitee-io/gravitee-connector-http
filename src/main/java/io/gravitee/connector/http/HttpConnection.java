@@ -99,21 +99,17 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     if (event.succeeded()) {
                         httpClientRequest = event.result();
 
-                        httpClientRequest.response(
-                            response -> {
-                                // Prepare upstream response
-                                handleUpstreamResponse(response, tracker);
-                            }
-                        );
+                        httpClientRequest.response(response -> {
+                            // Prepare upstream response
+                            handleUpstreamResponse(response, tracker);
+                        });
 
-                        httpClientRequest.exceptionHandler(
-                            exEvent -> {
-                                if (!isCanceled() && !isTransmitted()) {
-                                    handleException(event.cause());
-                                    tracker.handle(null);
-                                }
+                        httpClientRequest.exceptionHandler(exEvent -> {
+                            if (!isCanceled() && !isTransmitted()) {
+                                handleException(event.cause());
+                                tracker.handle(null);
                             }
-                        );
+                        });
                         connectionHandler.handle(null);
                     } else {
                         connectionHandler.handle(null);
@@ -180,29 +176,25 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
 
             // Signal end of the response
-            clientResponse.endHandler(
-                event -> {
-                    response.endHandler().handle(null);
-                    tracker.handle(null);
-                }
-            );
+            clientResponse.endHandler(event -> {
+                response.endHandler().handle(null);
+                tracker.handle(null);
+            });
 
-            clientResponse.exceptionHandler(
-                throwable -> {
-                    LOGGER.error(
-                        "Unexpected error while handling backend response for request {} {} - {}",
-                        httpClientRequest.getMethod(),
-                        httpClientRequest.absoluteURI(),
-                        throwable.getMessage()
-                    );
+            clientResponse.exceptionHandler(throwable -> {
+                LOGGER.error(
+                    "Unexpected error while handling backend response for request {} {} - {}",
+                    httpClientRequest.getMethod(),
+                    httpClientRequest.absoluteURI(),
+                    throwable.getMessage()
+                );
 
-                    response.endHandler().handle(null);
-                    tracker.handle(null);
-                }
-            );
+                response.endHandler().handle(null);
+                tracker.handle(null);
+            });
 
-            clientResponse.customFrameHandler(
-                frame -> response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload().getBytes())))
+            clientResponse.customFrameHandler(frame ->
+                response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload().getBytes())))
             );
 
             // And send it to the client

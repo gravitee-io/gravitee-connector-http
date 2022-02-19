@@ -54,11 +54,9 @@ public class GrpcConnection extends HttpConnection<HttpResponse> {
                     .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
                     .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects())
             )
-            .map(
-                httpClientRequest -> {
-                    // Always set chunked mode for gRPC transport
-                    return httpClientRequest.setChunked(true);
-                }
-            );
+            .map(httpClientRequest -> {
+                // Always set chunked mode for gRPC transport
+                return httpClientRequest.setChunked(true);
+            });
     }
 }

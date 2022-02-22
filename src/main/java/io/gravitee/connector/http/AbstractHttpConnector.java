@@ -15,6 +15,7 @@
  */
 package io.gravitee.connector.http;
 
+import io.gravitee.common.http.HttpHeader;
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.connector.api.AbstractConnector;
@@ -50,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,6 +122,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
                 endpoint
                     .getHeaders()
+                    .stream()
+                    .filter(httpHeader -> !httpHeader.getName().equalsIgnoreCase(HttpHeaders.ACCEPT_ENCODING))
                     .forEach(header -> {
                         request.headers().add(header.getName(), header.getValue());
                     });

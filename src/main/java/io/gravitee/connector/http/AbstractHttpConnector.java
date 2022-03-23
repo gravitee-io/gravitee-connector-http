@@ -91,7 +91,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         this.configuration = configuration;
     }
 
-    private final Map<Thread, HttpClient> httpClients = new ConcurrentHashMap<>();
+    protected final Map<Thread, HttpClient> httpClients = new ConcurrentHashMap<>();
 
     private final AtomicInteger requestTracker = new AtomicInteger(0);
 
@@ -122,7 +122,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                     .getHeaders()
                     .forEach(
                         header -> {
-                            request.headers().add(header.getName(), header.getValue());
+                            request.headers().set(header.getName(), header.getValue());
                         }
                     );
             }

@@ -90,7 +90,7 @@
     "headers": {
       "type": "array",
       "title": "HTTP Headers",
-      "description": "Default HTTP headers added by the API gateway to upstream",
+      "description": "Default HTTP headers added or overrided by the API gateway to upstream",
       "items": {
         "type": "object",
         "title": "Header",

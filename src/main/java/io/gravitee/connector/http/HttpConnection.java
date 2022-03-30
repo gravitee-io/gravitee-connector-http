@@ -89,6 +89,9 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             request.headers().remove(header.toString());
         }
 
+        // Let the API Owner choose the Accept-Encoding between the gateway and the backend
+        request.headers().remove(io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING);
+
         Future<HttpClientRequest> request = prepareUpstreamRequest(httpClient, port, host, uri);
         request.onComplete(
             new io.vertx.core.Handler<>() {

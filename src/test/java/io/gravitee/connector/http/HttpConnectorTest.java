@@ -16,12 +16,20 @@
 package io.gravitee.connector.http;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.*;
 
 import io.gravitee.common.http.HttpHeader;
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.api.Connection;
+import io.gravitee.connector.api.EndpointException;
+import io.gravitee.connector.http.endpoint.HttpClientSslOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.connector.http.endpoint.TrustStore;
+import io.gravitee.connector.http.endpoint.jks.JKSKeyStore;
+import io.gravitee.connector.http.endpoint.jks.JKSTrustStore;
+import io.gravitee.connector.http.endpoint.pkcs12.PKCS12KeyStore;
+import io.gravitee.connector.http.endpoint.pkcs12.PKCS12TrustStore;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
@@ -35,6 +43,7 @@ import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.RequestOptions;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
@@ -45,6 +54,9 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class HttpConnectorTest {
+
+    private static final String TRUSTSTORE = "gravitee-truststore";
+    private static final String KEYSTORE = "gravitee-keystore";
 
     @InjectMocks
     HttpConnector connector;
@@ -70,6 +82,9 @@ public class HttpConnectorTest {
     @Spy
     HttpClient httpClient;
 
+    @Spy
+    HttpHeaders spyHeaders;
+
     @Captor
     ArgumentCaptor<String> headerCaptor;
 
@@ -89,6 +104,7 @@ public class HttpConnectorTest {
         HttpClientRequest httpClientRequest = mock(HttpClientRequest.class);
         when(httpClient.request(any(RequestOptions.class))).thenReturn(Future.succeededFuture(httpClientRequest));
         connector.httpClients.put(Thread.currentThread(), httpClient);
+        when(request.headers()).thenReturn(spyHeaders);
         connector.doStart();
     }
 
@@ -106,8 +122,6 @@ public class HttpConnectorTest {
                     new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io")
                 )
             );
-        HttpHeaders spyHeaders = spy(HttpHeaders.class);
-        when(request.headers()).thenReturn(spyHeaders);
 
         connector.request(executionContext, request, connectionHandler);
 
@@ -115,5 +129,53 @@ public class HttpConnectorTest {
         List<String> allValues = headerCaptor.getAllValues();
         assertEquals(3, allValues.size());
         assertEquals("api2.gravitee.io", allValues.get(2));
+    }
+
+    @Test
+    public void shouldCreateHttpClientOptions_PKCSInlineContent() throws EndpointException {
+        HttpClientSslOptions httpClientSslOptions = new HttpClientSslOptions();
+        PKCS12KeyStore pkcs12KeyStore = new PKCS12KeyStore();
+        pkcs12KeyStore.setContent(Base64.getEncoder().encodeToString(KEYSTORE.getBytes()));
+        pkcs12KeyStore.setPassword("password");
+        httpClientSslOptions.setKeyStore(pkcs12KeyStore);
+
+        PKCS12TrustStore pkcs12TrustStore = new PKCS12TrustStore();
+        pkcs12TrustStore.setContent(Base64.getEncoder().encodeToString(TRUSTSTORE.getBytes()));
+        pkcs12TrustStore.setPassword("password");
+        httpClientSslOptions.setTrustStore(pkcs12TrustStore);
+
+        when(endpoint.getHttpClientSslOptions()).thenReturn(httpClientSslOptions);
+
+        HttpClientOptions httpClientOptions = connector.createHttpClientOptions();
+
+        assertNotNull(httpClientOptions);
+        assertNotNull(httpClientOptions.getPfxKeyCertOptions());
+        assertEquals(KEYSTORE, httpClientOptions.getPfxKeyCertOptions().getValue().toString());
+        assertNotNull(httpClientOptions.getPfxTrustOptions());
+        assertEquals(TRUSTSTORE, httpClientOptions.getPfxTrustOptions().getValue().toString());
+    }
+
+    @Test
+    public void shouldCreateHttpClientOptions_JKSInlineContent() throws EndpointException {
+        HttpClientSslOptions httpClientSslOptions = new HttpClientSslOptions();
+        JKSKeyStore jksKeyStore = new JKSKeyStore();
+        jksKeyStore.setContent(Base64.getEncoder().encodeToString(KEYSTORE.getBytes()));
+        jksKeyStore.setPassword("password");
+        httpClientSslOptions.setKeyStore(jksKeyStore);
+
+        JKSTrustStore jksTrustStore = new JKSTrustStore();
+        jksTrustStore.setContent(Base64.getEncoder().encodeToString(TRUSTSTORE.getBytes()));
+        jksTrustStore.setPassword("password");
+        httpClientSslOptions.setTrustStore(jksTrustStore);
+
+        when(endpoint.getHttpClientSslOptions()).thenReturn(httpClientSslOptions);
+
+        HttpClientOptions httpClientOptions = connector.createHttpClientOptions();
+
+        assertNotNull(httpClientOptions);
+        assertNotNull(httpClientOptions.getKeyStoreOptions());
+        assertEquals(KEYSTORE, httpClientOptions.getKeyStoreOptions().getValue().toString());
+        assertNotNull(httpClientOptions.getTrustOptions());
+        assertEquals(TRUSTSTORE, httpClientOptions.getTrustStoreOptions().getValue().toString());
     }
 }

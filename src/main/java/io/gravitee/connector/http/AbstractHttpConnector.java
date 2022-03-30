@@ -43,6 +43,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
@@ -257,7 +258,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             if (pkcs12TrustStore.getPath() != null && !pkcs12TrustStore.getPath().isEmpty()) {
                                 pfxOptions.setPath(pkcs12TrustStore.getPath());
                             } else if (pkcs12TrustStore.getContent() != null && !pkcs12TrustStore.getContent().isEmpty()) {
-                                pfxOptions.setValue(io.vertx.core.buffer.Buffer.buffer(pkcs12TrustStore.getContent()));
+                                byte[] decode = Base64.getDecoder().decode(pkcs12TrustStore.getContent());
+                                pfxOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             } else {
                                 throw new EndpointException("Missing PKCS12 value for endpoint " + endpoint.name());
                             }
@@ -270,7 +272,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             if (jksTrustStore.getPath() != null && !jksTrustStore.getPath().isEmpty()) {
                                 jksOptions.setPath(jksTrustStore.getPath());
                             } else if (jksTrustStore.getContent() != null && !jksTrustStore.getContent().isEmpty()) {
-                                jksOptions.setValue(io.vertx.core.buffer.Buffer.buffer(jksTrustStore.getContent()));
+                                byte[] decode = Base64.getDecoder().decode(jksTrustStore.getContent());
+                                jksOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             } else {
                                 throw new EndpointException("Missing JKS value for endpoint " + endpoint.name());
                             }
@@ -304,7 +307,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             if (pkcs12KeyStore.getPath() != null && !pkcs12KeyStore.getPath().isEmpty()) {
                                 pfxOptions.setPath(pkcs12KeyStore.getPath());
                             } else if (pkcs12KeyStore.getContent() != null && !pkcs12KeyStore.getContent().isEmpty()) {
-                                pfxOptions.setValue(io.vertx.core.buffer.Buffer.buffer(pkcs12KeyStore.getContent()));
+                                byte[] decode = Base64.getDecoder().decode(pkcs12KeyStore.getContent());
+                                pfxOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             }
                             options.setPfxKeyCertOptions(pfxOptions);
                             break;
@@ -315,7 +319,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             if (jksKeyStore.getPath() != null && !jksKeyStore.getPath().isEmpty()) {
                                 jksOptions.setPath(jksKeyStore.getPath());
                             } else if (jksKeyStore.getContent() != null && !jksKeyStore.getContent().isEmpty()) {
-                                jksOptions.setValue(io.vertx.core.buffer.Buffer.buffer(jksKeyStore.getContent()));
+                                byte[] decode = Base64.getDecoder().decode(jksKeyStore.getContent());
+                                jksOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             }
                             options.setKeyStoreOptions(jksOptions);
                             break;

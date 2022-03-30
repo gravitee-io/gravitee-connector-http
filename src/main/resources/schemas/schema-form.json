@@ -332,7 +332,7 @@
             "content": {
               "type": "string",
               "title": "Content",
-              "description": "Binary content",
+              "description": "Binary content as Base64",
               "x-schema-form": {
                 "type": "text",
                 "hidden": [
@@ -429,7 +429,7 @@
             "content": {
               "type": "string",
               "title": "Content",
-              "description": "Binary content",
+              "description": "Binary content as Base64",
               "x-schema-form": {
                 "type": "text",
                 "hidden": [

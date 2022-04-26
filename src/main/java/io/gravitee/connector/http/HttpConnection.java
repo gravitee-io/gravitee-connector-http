@@ -29,6 +29,7 @@ import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.WriteStream;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.http.*;
@@ -170,6 +171,13 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             HttpClientResponse clientResponse = clientResponseFuture.result();
 
             response = createProxyResponse(clientResponse);
+
+            if (isSse(request)) {
+                request.closeHandler(proxyConnectionClosed -> {
+                    clientResponse.exceptionHandler(null);
+                    cancel();
+                });
+            }
 
             response.pause();
 
@@ -317,5 +325,9 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         httpClientRequest.writeCustomFrame(frame.type(), frame.flags(), io.vertx.core.buffer.Buffer.buffer(frame.payload().getBytes()));
 
         return this;
+    }
+
+    private boolean isSse(ProxyRequest request) {
+        return HttpHeaderValues.TEXT_EVENT_STREAM.contentEqualsIgnoreCase(request.headers().get(HttpHeaderNames.ACCEPT));
     }
 }

@@ -59,7 +59,7 @@
         },
         "followRedirects": {
           "title": "Follow HTTP redirects",
-          "description": "When the client receives an 301, 302, 303 or 307 status code, it follows the redirection provided by the Location response header",
+          "description": "When the client receives a status code in the range 3xx, it follows the redirection provided by the Location response header",
           "type": "boolean",
           "default": false
         },

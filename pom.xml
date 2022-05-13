@@ -35,6 +35,7 @@
 
     <properties>
         <gravitee-bom.version>1.4</gravitee-bom.version>
+        <gravitee-common.version>1.26.1</gravitee-common.version>
         <gravitee-connector-api.version>1.1.1</gravitee-connector-api.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
@@ -54,6 +55,13 @@
     </dependencyManagement>
 
     <dependencies>
+        <dependency>
+            <groupId>io.gravitee.common</groupId>
+            <artifactId>gravitee-common</artifactId>
+            <version>${gravitee-common.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>io.gravitee.connector</groupId>
             <artifactId>gravitee-connector-api</artifactId>

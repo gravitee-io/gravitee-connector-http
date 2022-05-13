@@ -17,6 +17,7 @@ package io.gravitee.connector.http;
 
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
+import io.gravitee.common.util.VertxProxyOptionsUtils;
 import io.gravitee.connector.api.AbstractConnector;
 import io.gravitee.connector.api.Connection;
 import io.gravitee.connector.api.EndpointException;
@@ -45,7 +46,6 @@ import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.util.Base64;
 import java.util.Map;
-import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -206,19 +206,20 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
         // Configure proxy
         HttpProxy proxy = endpoint.getHttpProxy();
+
         if (proxy != null && proxy.isEnabled()) {
-            ProxyOptions proxyOptions;
             if (proxy.isUseSystemProxy()) {
-                proxyOptions = getSystemProxyOptions();
+                setSystemProxy(options);
             } else {
+                ProxyOptions proxyOptions;
                 proxyOptions = new ProxyOptions();
                 proxyOptions.setHost(proxy.getHost());
                 proxyOptions.setPort(proxy.getPort());
                 proxyOptions.setUsername(proxy.getUsername());
                 proxyOptions.setPassword(proxy.getPassword());
                 proxyOptions.setType(ProxyType.valueOf(proxy.getType().name()));
+                options.setProxyOptions(proxyOptions);
             }
-            options.setProxyOptions(proxyOptions);
         }
 
         HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
@@ -422,44 +423,18 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         }
     }
 
-    private ProxyOptions getSystemProxyOptions() {
-        StringBuilder errors = new StringBuilder();
-        ProxyOptions proxyOptions = new ProxyOptions();
-
-        // System proxy must be well configured. Check that this is the case.
-        if (configuration.containsProperty("system.proxy.host")) {
-            proxyOptions.setHost(configuration.getProperty("system.proxy.host"));
-        } else {
-            errors.append("'system.proxy.host' ");
-        }
-
+    private void setSystemProxy(HttpClientOptions options) {
         try {
-            proxyOptions.setPort(Integer.parseInt(Objects.requireNonNull(configuration.getProperty("system.proxy.port"))));
+            VertxProxyOptionsUtils.setSystemProxy(options, configuration);
         } catch (Exception e) {
-            errors.append("'system.proxy.port' [").append(configuration.getProperty("system.proxy.port")).append("] ");
-        }
-
-        try {
-            proxyOptions.setType(ProxyType.valueOf(configuration.getProperty("system.proxy.type")));
-        } catch (Exception e) {
-            errors.append("'system.proxy.type' [").append(configuration.getProperty("system.proxy.type")).append("] ");
-        }
-
-        proxyOptions.setUsername(configuration.getProperty("system.proxy.username"));
-        proxyOptions.setPassword(configuration.getProperty("system.proxy.password"));
-
-        if (errors.length() == 0) {
-            return proxyOptions;
-        } else {
             LOGGER.warn(
                 "A service endpoint (name[{}] type[{}] target[{}]) requires a system proxy to be defined but some configurations are missing or not well defined: {}",
                 endpoint.name(),
                 endpoint.type(),
                 endpoint.target(),
-                errors
+                e.getMessage()
             );
             LOGGER.warn("Ignoring system proxy");
-            return null;
         }
     }
 }

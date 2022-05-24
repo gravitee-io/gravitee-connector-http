@@ -1,3 +1,15 @@
+# [2.0.0](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.4...2.0.0) (2022-05-24)
+
+
+### Code Refactoring
+
+* use common system proxy options factory ([dc1daae](https://github.com/gravitee-io/gravitee-connector-http/commit/dc1daae625bf6240f80227c149e5ab45ed56cf88))
+
+
+### BREAKING CHANGES
+
+* this version requires APIM in version 3.18 and upper
+
 ## [1.1.4](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.3...1.1.4) (2022-04-26)
 
 

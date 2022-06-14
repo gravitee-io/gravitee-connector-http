@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.0...2.0.1) (2022-06-14)
+
+
+### Bug Fixes
+
+* forward http headers during connection to websocket upstream ([3ccf06c](https://github.com/gravitee-io/gravitee-connector-http/commit/3ccf06c652ce897fec38bb20a901df533fd490bd)), closes [gravitee-io/issues#7750](https://github.com/gravitee-io/issues/issues/7750)
+
 ## [1.1.5](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.4...1.1.5) (2022-06-14)
 
 

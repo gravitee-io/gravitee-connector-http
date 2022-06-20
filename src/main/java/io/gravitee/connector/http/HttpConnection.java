@@ -21,6 +21,7 @@ import io.gravitee.connector.api.Response;
 import io.gravitee.connector.api.response.ClientConnectionErrorResponse;
 import io.gravitee.connector.api.response.ClientConnectionTimeoutResponse;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.connector.http.endpoint.ProtocolVersion;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaders;
@@ -295,7 +296,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         // with chunk value
         if (content) {
             String encoding = headers.getFirst(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING);
-            if (encoding != null && encoding.contains(HttpHeadersValues.TRANSFER_ENCODING_CHUNKED)) {
+            if (
+                encoding != null &&
+                encoding.contains(HttpHeadersValues.TRANSFER_ENCODING_CHUNKED) ||
+                ProtocolVersion.HTTP_2.equals(endpoint.getHttpClientOptions().getVersion())
+            ) {
                 httpClientRequest.setChunked(true);
             }
         } else {

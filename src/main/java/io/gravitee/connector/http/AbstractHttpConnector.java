@@ -15,6 +15,7 @@
  */
 package io.gravitee.connector.http;
 
+import io.gravitee.common.http.HttpHeader;
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.connector.api.AbstractConnector;
@@ -39,10 +40,7 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.net.*;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLStreamHandler;
+import java.net.*;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
@@ -98,33 +96,47 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     @Override
     public void request(ExecutionContext context, ProxyRequest request, Handler<Connection> connectionHandler) {
-        // For Vertx HTTP client query parameters have to be passed along the URI
-        final String uri = appendQueryParameters(request.uri(), request.parameters());
-
-        // Add the endpoint reference in metrics to know which endpoint has been invoked while serving the request
-        request.metrics().setEndpoint(uri);
-
         try {
-            final URL url = new URL(null, uri, URL_HANDLER);
+            // For Vertx HTTP client query parameters have to be passed along the URI
+            String queryParameters = extractQueryParameters(request.uri(), request.parameters());
+
+            String customHost = null;
+
+            // Enhance proxy request with endpoint configuration
+            if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
+                for (HttpHeader httpHeader : endpoint.getHeaders()) {
+                    if (HttpHeaders.HOST.equalsIgnoreCase(httpHeader.getName())) {
+                        customHost = httpHeader.getValue();
+                    } else {
+                        request.headers().set(httpHeader.getName(), httpHeader.getValue());
+                    }
+                }
+            }
+
+            URL url = new URL(null, request.uri() + queryParameters, URL_HANDLER);
+
+            request.headers().remove(HttpHeaders.HOST);
+
+            if (customHost != null) {
+                String[] hostAndPort = customHost.split(":");
+                url =
+                    new URL(
+                        url.getProtocol(),
+                        hostAndPort[0],
+                        hostAndPort.length > 1 ? Integer.parseInt(hostAndPort[1]) : url.getPort(),
+                        url.getFile(),
+                        URL_HANDLER
+                    );
+            }
+
+            // Add the endpoint reference in metrics to know which endpoint has been invoked while serving the request
+            request.metrics().setEndpoint(url.toString());
 
             final String protocol = url.getProtocol();
 
             final int port = url.getPort() != -1
                 ? url.getPort()
                 : protocol.charAt(protocol.length() - 1) == 's' ? SECURE_PORT : UNSECURE_PORT;
-
-            final String host = (port == UNSECURE_PORT || port == SECURE_PORT) ? url.getHost() : url.getHost() + ':' + port;
-
-            request.headers().set(HttpHeaders.HOST, host);
-
-            // Enhance proxy request with endpoint configuration
-            if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
-                endpoint
-                    .getHeaders()
-                    .forEach(header -> {
-                        request.headers().set(header.getName(), header.getValue());
-                    });
-            }
 
             // Create the connector to the upstream
             final AbstractHttpConnection<HttpEndpoint> connection = create(request);
@@ -143,7 +155,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                 connect -> connectionHandler.handle(connection),
                 result -> requestTracker.decrementAndGet()
             );
-        } catch (MalformedURLException ex) {
+        } catch (MalformedURLException e) {
             throw new IllegalArgumentException();
         }
     }
@@ -156,7 +168,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         printHttpClientConfiguration();
     }
 
-    private String appendQueryParameters(String uri, MultiValueMap<String, String> parameters) {
+    private String extractQueryParameters(String uri, MultiValueMap<String, String> parameters) {
         if (parameters != null && !parameters.isEmpty()) {
             StringJoiner parametersAsString = new StringJoiner(URI_PARAM_SEPARATOR);
             parameters.forEach((paramName, paramValues) -> {
@@ -172,12 +184,12 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             });
 
             if (uri.contains(URI_QUERY_DELIMITER_CHAR_SEQUENCE)) {
-                return uri + URI_PARAM_SEPARATOR_CHAR + parametersAsString.toString();
+                return "" + URI_PARAM_SEPARATOR_CHAR + parametersAsString;
             } else {
-                return uri + URI_QUERY_DELIMITER_CHAR + parametersAsString.toString();
+                return "" + URI_QUERY_DELIMITER_CHAR + parametersAsString;
             }
         } else {
-            return uri;
+            return "";
         }
     }
 

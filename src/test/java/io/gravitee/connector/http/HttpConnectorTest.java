@@ -42,6 +42,10 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.RequestOptions;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -115,20 +119,14 @@ public class HttpConnectorTest {
 
     @Test
     public void shouldOverrideHeaders() {
-        when(endpoint.getHeaders())
-            .thenReturn(
-                Arrays.asList(
-                    new HttpHeader(HttpHeaderNames.HOST, "api.gravitee.io"),
-                    new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io")
-                )
-            );
+        when(endpoint.getHeaders()).thenReturn(Arrays.asList(new HttpHeader(HttpHeaderNames.CONTENT_TYPE, "application/json")));
 
         connector.request(executionContext, request, connectionHandler);
 
-        verify(spyHeaders, times(3)).set(eq(HttpHeaderNames.HOST), headerCaptor.capture());
+        verify(spyHeaders, times(1)).set(eq(HttpHeaderNames.CONTENT_TYPE), headerCaptor.capture());
         List<String> allValues = headerCaptor.getAllValues();
-        assertEquals(3, allValues.size());
-        assertEquals("api2.gravitee.io", allValues.get(2));
+        assertEquals(1, allValues.size());
+        assertEquals("application/json", allValues.get(0));
     }
 
     @Test

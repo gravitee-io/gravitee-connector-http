@@ -303,7 +303,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
 
         // Copy headers to upstream
-        request.headers().forEach(entry -> httpClientRequest.putHeader(entry.getKey(), entry.getValue()));
+        request
+            .headers()
+            .names()
+            .forEach(name -> {
+                httpClientRequest.headers().add(name, request.headers().getAll(name));
+            });
     }
 
     @Override

@@ -1,3 +1,10 @@
+## [1.1.6](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.5...1.1.6) (2022-06-24)
+
+
+### Bug Fixes
+
+* propagate multi value header properly ([be778be](https://github.com/gravitee-io/gravitee-connector-http/commit/be778bee8df2b3f7eeb1d7e8bf71e17a23d8ad0e))
+
 ## [1.1.5](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.4...1.1.5) (2022-06-14)
 
 

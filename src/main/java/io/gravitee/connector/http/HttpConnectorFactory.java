@@ -17,6 +17,7 @@ package io.gravitee.connector.http;
 
 import io.gravitee.connector.api.*;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.connector.http.endpoint.ProtocolVersion;
 import io.gravitee.connector.http.endpoint.factory.HttpEndpointFactory;
 import io.gravitee.connector.http.grpc.GrpcConnector;
 import io.gravitee.el.TemplateEngine;
@@ -48,6 +49,10 @@ public class HttpConnectorFactory implements ConnectorFactory<Connector<Connecti
         String type = httpEndpoint.type();
         if (type.equalsIgnoreCase("GRPC")) {
             return new GrpcConnector(httpEndpoint, builder.getConfiguration());
+        }
+
+        if (httpEndpoint.getHttpClientOptions().getVersion().equals(ProtocolVersion.HTTP_2)) {
+            return new Http2Connector(httpEndpoint, builder.getConfiguration());
         }
 
         return new HttpConnector(httpEndpoint, builder.getConfiguration());

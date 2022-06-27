@@ -18,6 +18,7 @@ package io.gravitee.connector.http.grpc;
 import io.gravitee.common.http.MediaType;
 import io.gravitee.connector.http.HttpConnection;
 import io.gravitee.connector.http.HttpResponse;
+import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.Future;
@@ -34,7 +35,7 @@ public class GrpcConnection extends HttpConnection<HttpResponse> {
 
     private static final String GRPC_TRAILERS_TE = "trailers";
 
-    public GrpcConnection(GrpcEndpoint endpoint, ProxyRequest request) {
+    public GrpcConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint, request);
     }
 

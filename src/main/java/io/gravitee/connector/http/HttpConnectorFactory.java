@@ -19,7 +19,6 @@ import io.gravitee.connector.api.*;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.endpoint.factory.HttpEndpointFactory;
 import io.gravitee.connector.http.grpc.GrpcConnector;
-import io.gravitee.connector.http.grpc.GrpcEndpoint;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import java.util.Arrays;
@@ -48,10 +47,7 @@ public class HttpConnectorFactory implements ConnectorFactory<Connector<Connecti
 
         String type = httpEndpoint.type();
         if (type.equalsIgnoreCase("GRPC")) {
-            return new GrpcConnector(
-                new GrpcEndpoint(httpEndpoint.type(), httpEndpoint.name(), httpEndpoint.target()),
-                builder.getConfiguration()
-            );
+            return new GrpcConnector(httpEndpoint, builder.getConfiguration());
         }
 
         return new HttpConnector(httpEndpoint, builder.getConfiguration());

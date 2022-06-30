@@ -1,3 +1,10 @@
+## [1.1.8](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.7...1.1.8) (2022-06-30)
+
+
+### Bug Fixes
+
+* keep ssl options in grpc endoint ([e2c8356](https://github.com/gravitee-io/gravitee-connector-http/commit/e2c8356985f1ca4c8b5680e6a7f3ba4b956a3df9)), closes [gravitee-io/issues#7760](https://github.com/gravitee-io/issues/issues/7760)
+
 ## [1.1.7](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.6...1.1.7) (2022-06-30)
 
 

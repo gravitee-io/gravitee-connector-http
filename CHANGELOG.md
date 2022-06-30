@@ -1,3 +1,10 @@
+## [1.1.7](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.6...1.1.7) (2022-06-30)
+
+
+### Bug Fixes
+
+* make the follow redirects ui message more generic ([175eef5](https://github.com/gravitee-io/gravitee-connector-http/commit/175eef5375995ecfbea2c1c1c58d528ad6ab177c))
+
 ## [1.1.6](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.5...1.1.6) (2022-06-24)
 
 

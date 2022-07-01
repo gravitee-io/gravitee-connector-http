@@ -1,3 +1,10 @@
+## [1.1.9](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.8...1.1.9) (2022-07-01)
+
+
+### Bug Fixes
+
+* restore HTTP headers backward compatibility ([dd6b28f](https://github.com/gravitee-io/gravitee-connector-http/commit/dd6b28f2d7f62329ee054602ecc75cf31c210a9b)), closes [gravitee-io/issues#7930](https://github.com/gravitee-io/issues/issues/7930)
+
 ## [1.1.8](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.7...1.1.8) (2022-06-30)
 
 

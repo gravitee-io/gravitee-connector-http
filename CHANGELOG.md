@@ -1,3 +1,13 @@
+## [2.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.2...2.0.3) (2022-07-04)
+
+
+### Bug Fixes
+
+* keep ssl options in grpc endoint ([e2c8356](https://github.com/gravitee-io/gravitee-connector-http/commit/e2c8356985f1ca4c8b5680e6a7f3ba4b956a3df9)), closes [gravitee-io/issues#7760](https://github.com/gravitee-io/issues/issues/7760)
+* make the follow redirects ui message more generic ([175eef5](https://github.com/gravitee-io/gravitee-connector-http/commit/175eef5375995ecfbea2c1c1c58d528ad6ab177c))
+* propagate multi value header properly ([be778be](https://github.com/gravitee-io/gravitee-connector-http/commit/be778bee8df2b3f7eeb1d7e8bf71e17a23d8ad0e))
+* restore HTTP headers backward compatibility ([dd6b28f](https://github.com/gravitee-io/gravitee-connector-http/commit/dd6b28f2d7f62329ee054602ecc75cf31c210a9b)), closes [gravitee-io/issues#7930](https://github.com/gravitee-io/issues/issues/7930)
+
 ## [2.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.1...2.0.2) (2022-06-30)
 
 

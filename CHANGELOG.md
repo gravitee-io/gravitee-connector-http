@@ -1,3 +1,10 @@
+## [1.1.10](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.9...1.1.10) (2022-07-27)
+
+
+### Bug Fixes
+
+* return null instead of empty list when getting an undefined header ([22fb429](https://github.com/gravitee-io/gravitee-connector-http/commit/22fb429bda25f9740eec0eb962703c5db0c494cb))
+
 ## [1.1.9](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.8...1.1.9) (2022-07-01)
 
 

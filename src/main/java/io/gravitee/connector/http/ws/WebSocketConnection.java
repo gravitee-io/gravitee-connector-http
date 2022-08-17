@@ -71,6 +71,11 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
 
         WebSocketConnectOptions options = new WebSocketConnectOptions().setHost(host).setPort(port).setURI(uri);
 
+        // Add subprotocols based on the ones specified in the request headers
+        if (wsProxyRequest.headers().contains(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL)) {
+            wsProxyRequest.headers().getAll(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL).forEach(options::addSubProtocol);
+        }
+
         wsProxyRequest.headers().forEach(entry -> options.addHeader(entry.getKey(), entry.getValue()));
 
         httpClient.webSocket(

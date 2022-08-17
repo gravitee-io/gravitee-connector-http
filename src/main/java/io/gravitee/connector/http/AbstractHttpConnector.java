@@ -107,11 +107,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         try {
             final URL url = new URL(null, uri, URL_HANDLER);
 
-            final String protocol = url.getProtocol();
-
-            final int port = url.getPort() != -1
-                ? url.getPort()
-                : protocol.charAt(protocol.length() - 1) == 's' ? SECURE_PORT : UNSECURE_PORT;
+            final int defaultPort = isSecureProtocol(url.getProtocol()) ? SECURE_PORT : UNSECURE_PORT;
+            final int port = url.getPort() != -1 ? url.getPort() : defaultPort;
 
             final String host = (port == UNSECURE_PORT || port == SECURE_PORT) ? url.getHost() : url.getHost() + ':' + port;
 
@@ -224,9 +221,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
         HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
 
-        final String protocol = target.getProtocol();
-
-        if (protocol.charAt(protocol.length() - 1) == 's') {
+        if (isSecureProtocol(target.getProtocol())) {
             // Configure SSL
             options.setSsl(true).setUseAlpn(true);
 
@@ -365,6 +360,18 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     private Function<Thread, HttpClient> createHttpClient() {
         return thread -> Vertx.currentContext().owner().createHttpClient(options);
+    }
+
+    /**
+     * Check if input protocol is secure or not based on its last character ('s' for secure).
+     * Also, to be considered as secure the length of protocol's name the must be at least 2 characters to avoid considering `ws` as secure.
+     * ⚠️ This method is implemented using `charAt` and `length` methods for performance reasons. Be very careful when changing this method.
+     *
+     * @param protocol the protocol to check
+     * @return true if protocol is secure, false otherwise
+     */
+    protected static boolean isSecureProtocol(String protocol) {
+        return protocol.charAt(protocol.length() - 1) == 's' && protocol.length() > 2;
     }
 
     private void printHttpClientConfiguration() {

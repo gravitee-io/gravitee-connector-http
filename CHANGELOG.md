@@ -1,3 +1,11 @@
+## [2.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.4...2.0.5) (2022-08-17)
+
+
+### Bug Fixes
+
+* do not consider `ws` as a secure protocol ([299207b](https://github.com/gravitee-io/gravitee-connector-http/commit/299207b6438869b4767e2c90373587f411fe7dab))
+* set WS subprotocols based on `sec-websocket-protocol` header ([88fa7eb](https://github.com/gravitee-io/gravitee-connector-http/commit/88fa7eb12325b7142340811366cc44e1dfb45df8))
+
 ## [1.1.11](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.10...1.1.11) (2022-08-17)
 
 

@@ -29,7 +29,7 @@
 
     <groupId>io.gravitee.connector</groupId>
     <artifactId>gravitee-connector-http</artifactId>
-    <version>2.0.5</version>
+    <version>2.0.6-8253-websocket-entrypoint-SNAPSHOT</version>
 
     <name>Gravitee.io - Connector - HTTP</name>
 

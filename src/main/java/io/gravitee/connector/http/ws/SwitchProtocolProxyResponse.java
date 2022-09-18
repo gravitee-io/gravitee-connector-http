@@ -71,6 +71,6 @@ public class SwitchProtocolProxyResponse implements Response {
 
     @Override
     public boolean connected() {
-        return false;
+        return true;
     }
 }

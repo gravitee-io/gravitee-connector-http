@@ -1,3 +1,10 @@
+## [2.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.5...2.0.6) (2022-09-20)
+
+
+### Bug Fixes
+
+* make ws proxy response connected ([c66ed45](https://github.com/gravitee-io/gravitee-connector-http/commit/c66ed4562f4c8bbab2c4ffb2cd972c71ffd5be4a)), closes [gravitee-io/issues#8253](https://github.com/gravitee-io/issues/issues/8253)
+
 ## [2.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.4...2.0.5) (2022-08-17)
 
 

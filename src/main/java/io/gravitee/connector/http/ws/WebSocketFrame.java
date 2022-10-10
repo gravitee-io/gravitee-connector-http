@@ -45,7 +45,7 @@ public class WebSocketFrame implements io.gravitee.gateway.api.ws.WebSocketFrame
 
     @Override
     public Buffer data() {
-        return Buffer.buffer(frame.binaryData().getBytes());
+        return Buffer.buffer(frame.binaryData());
     }
 
     @Override

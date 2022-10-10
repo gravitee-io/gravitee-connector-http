@@ -94,7 +94,7 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
                                         .result()
                                         .writeFrame(
                                             io.vertx.core.http.WebSocketFrame.binaryFrame(
-                                                io.vertx.core.buffer.Buffer.buffer(frame.data().getBytes()),
+                                                io.vertx.core.buffer.Buffer.buffer(frame.data().getNativeBuffer()),
                                                 frame.isFinal()
                                             )
                                         );

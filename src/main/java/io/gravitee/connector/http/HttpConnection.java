@@ -184,7 +184,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             response.cancelHandler(tracker);
 
             // Copy body content
-            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
+            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event)));
 
             // Signal end of the response
             clientResponse.endHandler(event -> {
@@ -205,7 +205,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             });
 
             clientResponse.customFrameHandler(frame ->
-                response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload().getBytes())))
+                response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload())))
             );
 
             // And send it to the client
@@ -266,7 +266,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             this.writeHeaders();
         }
 
-        httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getBytes()));
+        httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getNativeBuffer()));
 
         return this;
     }
@@ -327,7 +327,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     @Override
     public Connection writeCustomFrame(HttpFrame frame) {
-        httpClientRequest.writeCustomFrame(frame.type(), frame.flags(), io.vertx.core.buffer.Buffer.buffer(frame.payload().getBytes()));
+        httpClientRequest.writeCustomFrame(
+            frame.type(),
+            frame.flags(),
+            io.vertx.core.buffer.Buffer.buffer(frame.payload().getNativeBuffer())
+        );
 
         return this;
     }

@@ -1,3 +1,10 @@
+## [2.0.7](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.6...2.0.7) (2022-10-12)
+
+
+### Bug Fixes
+
+* use native buffer to avoid byte array copy ([1a2ed32](https://github.com/gravitee-io/gravitee-connector-http/commit/1a2ed328cc1aa0d7b36f39366b3f58268f3b3095))
+
 ## [2.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.5...2.0.6) (2022-09-20)
 
 

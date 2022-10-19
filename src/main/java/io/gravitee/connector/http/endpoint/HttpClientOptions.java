@@ -30,6 +30,7 @@ public class HttpClientOptions implements Serializable {
     public static boolean DEFAULT_KEEP_ALIVE = true;
     public static boolean DEFAULT_PIPELINING = false;
     public static boolean DEFAULT_USE_COMPRESSION = true;
+    public static boolean DEFAULT_PROPAGATE_CLIENT_ACCEPT_ENCODING = false;
     public static boolean DEFAULT_FOLLOW_REDIRECTS = false;
     public static boolean DEFAULT_CLEAR_TEXT_UPGRADE = true;
     public static ProtocolVersion DEFAULT_PROTOCOL_VERSION = ProtocolVersion.HTTP_1_1;
@@ -47,6 +48,8 @@ public class HttpClientOptions implements Serializable {
     private int maxConcurrentConnections = DEFAULT_MAX_CONCURRENT_CONNECTIONS;
 
     private boolean useCompression = DEFAULT_USE_COMPRESSION;
+
+    private boolean propagateClientAcceptEncoding = DEFAULT_PROPAGATE_CLIENT_ACCEPT_ENCODING;
 
     private boolean followRedirects = DEFAULT_FOLLOW_REDIRECTS;
 
@@ -132,5 +135,14 @@ public class HttpClientOptions implements Serializable {
 
     public void setVersion(ProtocolVersion version) {
         this.version = version;
+    }
+
+    public boolean isPropagateClientAcceptEncoding() {
+        // Propagate Accept-Encoding can only be made if useCompression is disabled.
+        return !useCompression && propagateClientAcceptEncoding;
+    }
+
+    public void setPropagateClientAcceptEncoding(boolean propagateClientAcceptEncoding) {
+        this.propagateClientAcceptEncoding = propagateClientAcceptEncoding;
     }
 }

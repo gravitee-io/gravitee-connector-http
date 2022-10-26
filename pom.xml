@@ -29,7 +29,7 @@
 
     <groupId>io.gravitee.connector</groupId>
     <artifactId>gravitee-connector-http</artifactId>
-    <version>1.1.12-7935-optionnally-propagate-accept-encoding-SNAPSHOT</version>
+    <version>1.1.12</version>
 
     <name>Gravitee.io - Connector - HTTP</name>
 

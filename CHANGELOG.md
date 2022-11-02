@@ -1,3 +1,10 @@
+## [2.0.8](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.7...2.0.8) (2022-11-02)
+
+
+### Bug Fixes
+
+* allow to optionally propagate accept-encoding ([6d67e6c](https://github.com/gravitee-io/gravitee-connector-http/commit/6d67e6c7ec7e04c60bfb4916d2ab462f6442047f)), closes [gravitee-io/issues#7935](https://github.com/gravitee-io/issues/issues/7935)
+
 ## [1.1.12](https://github.com/gravitee-io/gravitee-connector-http/compare/1.1.11...1.1.12) (2022-10-26)
 
 

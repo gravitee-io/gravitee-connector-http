@@ -15,10 +15,9 @@
  */
 package io.gravitee.connector.http;
 
+import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,22 +28,12 @@ import io.gravitee.connector.http.stub.DummyHttpClientRequest;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import io.vertx.core.MultiMap;
-import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.http.HttpClientResponse;
-import io.vertx.core.http.HttpVersion;
-import io.vertx.core.http.StreamPriority;
-import io.vertx.core.http.impl.HttpClientRequestBase;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -64,6 +53,7 @@ public class HttpConnectionTest {
     public static final String FIRST_HEADER_VALUE_1 = "first-header-value-1";
     public static final String FIRST_HEADER_VALUE_2 = "first-header-value-2";
     public static final String SECOND_HEADER_VALUE = "second-header-value";
+    protected static final String BROTLI = "br";
 
     private HttpConnection<HttpResponse> cut;
 
@@ -80,6 +70,7 @@ public class HttpConnectionTest {
     private HttpClientRequest httpClientRequest = new DummyHttpClientRequest();
 
     private HttpHeaders headers;
+    private HttpClientOptions httpClientOptions;
 
     @Before
     public void setUp() {
@@ -94,7 +85,8 @@ public class HttpConnectionTest {
         when(request.headers()).thenReturn(headers);
         when(request.method()).thenReturn(HttpMethod.GET);
 
-        when(endpoint.getHttpClientOptions()).thenReturn(new HttpClientOptions());
+        httpClientOptions = new HttpClientOptions();
+        when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
         when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
     }
 
@@ -108,6 +100,57 @@ public class HttpConnectionTest {
         assertThat(httpClientRequest.headers().getAll(SECOND_HEADER)).hasSize(1).containsExactly(SECOND_HEADER_VALUE);
 
         assertThat(httpClientRequest.headers().getAll(FIRST_HEADER)).hasSize(2).containsExactly(FIRST_HEADER_VALUE_1, FIRST_HEADER_VALUE_2);
+    }
+
+    @Test
+    public void shouldPropagateClientAcceptEncodingHeader() {
+        httpClientOptions.setUseCompression(false);
+        httpClientOptions.setPropagateClientAcceptEncoding(true);
+
+        headers.set(ACCEPT_ENCODING, BROTLI);
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(1).containsExactly(BROTLI);
+    }
+
+    @Test
+    public void shouldNotPropagateClientAcceptEncodingHeaderWhenNoHeader() {
+        httpClientOptions.setUseCompression(false);
+        httpClientOptions.setPropagateClientAcceptEncoding(true);
+
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
+    }
+
+    @Test
+    public void shouldNotPropagateClientAcceptEncodingHeaderWhenCompressionIsEnabled() {
+        httpClientOptions.setUseCompression(true);
+        httpClientOptions.setPropagateClientAcceptEncoding(true);
+
+        headers.set(ACCEPT_ENCODING, BROTLI);
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
+    }
+
+    @Test
+    public void shouldNotPropagateClientAcceptEncodingHeaderWhenPropagateIsDisabled() {
+        httpClientOptions.setUseCompression(false);
+        httpClientOptions.setPropagateClientAcceptEncoding(false);
+
+        headers.set(ACCEPT_ENCODING, BROTLI);
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
     }
 
     private int getAvailablePort() {

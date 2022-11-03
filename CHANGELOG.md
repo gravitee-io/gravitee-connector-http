@@ -1,3 +1,10 @@
+## [2.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.8...2.0.9) (2022-11-03)
+
+
+### Bug Fixes
+
+* do not use RxJava stuff for now as it will create a breaking change ([f6992d3](https://github.com/gravitee-io/gravitee-connector-http/commit/f6992d3affa58deaf885e56d9efd20c0a0061d3f))
+
 ## [2.0.8](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.7...2.0.8) (2022-11-02)
 
 

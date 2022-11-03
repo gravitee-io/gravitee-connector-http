@@ -22,6 +22,7 @@ import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
 import io.vertx.core.http.HttpClientOptions;
+import java.net.URL;
 import org.junit.Test;
 
 class TestHttpConnector extends AbstractHttpConnector<HttpEndpoint> {
@@ -29,6 +30,9 @@ class TestHttpConnector extends AbstractHttpConnector<HttpEndpoint> {
     public TestHttpConnector(HttpEndpoint endpoint, Configuration configuration) {
         super(endpoint, configuration);
     }
+
+    @Override
+    protected void convertHeadersForHttpVersion(URL url, ProxyRequest request, String host) {}
 
     @Override
     protected AbstractHttpConnection<HttpEndpoint> create(ProxyRequest request) {

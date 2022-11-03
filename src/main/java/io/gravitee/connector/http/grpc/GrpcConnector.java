@@ -16,7 +16,7 @@
 package io.gravitee.connector.http.grpc;
 
 import io.gravitee.connector.api.EndpointException;
-import io.gravitee.connector.http.AbstractHttpConnector;
+import io.gravitee.connector.http.Http2Connector;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
@@ -27,7 +27,7 @@ import io.vertx.core.http.HttpVersion;
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
  */
-public class GrpcConnector extends AbstractHttpConnector<HttpEndpoint> {
+public class GrpcConnector extends Http2Connector {
 
     public GrpcConnector(HttpEndpoint endpoint, Configuration configuration) {
         super(endpoint, configuration);

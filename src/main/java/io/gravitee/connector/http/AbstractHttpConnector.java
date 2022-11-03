@@ -15,7 +15,6 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.connector.api.AbstractConnector;
 import io.gravitee.connector.api.Connection;
@@ -112,7 +111,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
             final String host = (port == UNSECURE_PORT || port == SECURE_PORT) ? url.getHost() : url.getHost() + ':' + port;
 
-            request.headers().set(HttpHeaders.HOST, host);
+            convertHeadersForHttpVersion(url, request, host);
 
             // Enhance proxy request with endpoint configuration
             if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
@@ -144,6 +143,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             throw new IllegalArgumentException();
         }
     }
+
+    protected abstract void convertHeadersForHttpVersion(URL url, ProxyRequest request, String host);
 
     protected abstract AbstractHttpConnection<HttpEndpoint> create(ProxyRequest request);
 

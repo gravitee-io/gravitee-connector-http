@@ -36,8 +36,6 @@ import io.vertx.core.http.*;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
@@ -54,19 +52,17 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private static final Set<CharSequence> HOP_HEADERS;
 
     static {
-        Set<CharSequence> hopHeaders = new HashSet<>();
-
-        // Hop-by-hop headers
-        hopHeaders.add(HttpHeaderNames.CONNECTION);
-        hopHeaders.add(HttpHeaderNames.KEEP_ALIVE);
-        hopHeaders.add(HttpHeaderNames.PROXY_AUTHORIZATION);
-        hopHeaders.add(HttpHeaderNames.PROXY_AUTHENTICATE);
-        hopHeaders.add(HttpHeaderNames.PROXY_CONNECTION);
-        hopHeaders.add(HttpHeaderNames.TE);
-        hopHeaders.add(HttpHeaderNames.TRAILER);
-        hopHeaders.add(HttpHeaderNames.UPGRADE);
-
-        HOP_HEADERS = Collections.unmodifiableSet(hopHeaders);
+        HOP_HEADERS =
+            Set.of(
+                HttpHeaderNames.CONNECTION,
+                HttpHeaderNames.KEEP_ALIVE,
+                HttpHeaderNames.PROXY_AUTHORIZATION,
+                HttpHeaderNames.PROXY_AUTHENTICATE,
+                HttpHeaderNames.PROXY_CONNECTION,
+                HttpHeaderNames.TE,
+                HttpHeaderNames.TRAILER,
+                HttpHeaderNames.UPGRADE
+            );
     }
 
     private HttpClientRequest httpClientRequest;

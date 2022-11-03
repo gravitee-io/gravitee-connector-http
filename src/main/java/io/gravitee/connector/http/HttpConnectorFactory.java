@@ -78,7 +78,7 @@ public class HttpConnectorFactory implements ConnectorFactory<Connector<Connecti
 
     private String convert(String value) {
         if (value != null && !value.isEmpty()) {
-            return templateEngine.eval(value, String.class).blockingGet();
+            return templateEngine.getValue(value, String.class);
         }
 
         return value;

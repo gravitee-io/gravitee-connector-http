@@ -187,6 +187,10 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         options.setConnectTimeout((int) endpoint.getHttpClientOptions().getConnectTimeout());
         options.setMaxPoolSize(endpoint.getHttpClientOptions().getMaxConcurrentConnections());
         options.setTryUseCompression(endpoint.getHttpClientOptions().isUseCompression());
+        options.setTryUsePerFrameWebSocketCompression(endpoint.getHttpClientOptions().isUseCompression());
+        options.setTryUsePerMessageWebSocketCompression(endpoint.getHttpClientOptions().isUseCompression());
+        options.setWebSocketCompressionAllowClientNoContext(endpoint.getHttpClientOptions().isUseCompression());
+        options.setWebSocketCompressionRequestServerNoContext(endpoint.getHttpClientOptions().isUseCompression());
 
         if (endpoint.getHttpClientOptions().getVersion() == ProtocolVersion.HTTP_2) {
             options.setProtocolVersion(HttpVersion.HTTP_2);

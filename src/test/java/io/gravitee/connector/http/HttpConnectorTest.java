@@ -41,6 +41,7 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.RequestOptions;
 import java.util.Arrays;
 import java.util.Base64;
@@ -105,6 +106,7 @@ public class HttpConnectorTest {
         when(httpClient.request(any(RequestOptions.class))).thenReturn(Future.succeededFuture(httpClientRequest));
         connector.httpClients.put(Thread.currentThread(), httpClient);
         when(request.headers()).thenReturn(spyHeaders);
+        when(httpClientRequest.connection()).thenReturn(mock(HttpConnection.class));
         connector.doStart();
     }
 

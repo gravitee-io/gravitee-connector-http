@@ -18,6 +18,9 @@ package io.gravitee.connector.http;
 import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,9 +31,15 @@ import io.gravitee.connector.http.stub.DummyHttpClientRequest;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.reporter.api.http.Metrics;
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.HttpObject;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.impl.Http1xClientConnection;
+import io.vertx.core.net.impl.ConnectionBase;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -88,6 +97,20 @@ public class HttpConnectionTest {
         httpClientOptions = new HttpClientOptions();
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
         when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
+    }
+
+    @Test
+    public void shouldSetMetricsMessageWithVertxConnectionException() {
+        final Metrics requestMetrics = Metrics.on(System.currentTimeMillis()).build();
+        requestMetrics.setApi("api-id");
+        requestMetrics.setRequestId("request-id");
+        when(request.metrics()).thenReturn(requestMetrics);
+
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        // Rely on testing class ThrowingOnGoAwayHttpConnection to make the connection fail and trigger the exceptionHandler we want to test
+        httpClientRequest.connection().goAway(204, 1, Buffer.buffer("💥 Connection error"));
+
+        assertThat(requestMetrics.getMessage()).isEqualTo("💥 Connection error");
     }
 
     @Test

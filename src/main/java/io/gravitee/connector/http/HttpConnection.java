@@ -95,8 +95,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             request.headers().remove(io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING);
         }
 
-        Future<HttpClientRequest> request = prepareUpstreamRequest(httpClient, port, host, uri);
-        request.onComplete(
+        Future<HttpClientRequest> requestFuture = prepareUpstreamRequest(httpClient, port, host, uri);
+        requestFuture.onComplete(
             new io.vertx.core.Handler<>() {
                 @Override
                 public void handle(AsyncResult<HttpClientRequest> event) {
@@ -109,6 +109,18 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                             // Prepare upstream response
                             handleUpstreamResponse(response, tracker);
                         });
+
+                        httpClientRequest
+                            .connection()
+                            .exceptionHandler(t -> {
+                                LOGGER.debug(
+                                    "Exception occurs during HTTP connection for api [{}] & request id [{}]: {}",
+                                    request.metrics().getApi(),
+                                    request.metrics().getRequestId(),
+                                    t.getMessage()
+                                );
+                                request.metrics().setMessage(t.getMessage());
+                            });
 
                         httpClientRequest.exceptionHandler(exEvent -> {
                             if (!isCanceled() && !isTransmitted()) {

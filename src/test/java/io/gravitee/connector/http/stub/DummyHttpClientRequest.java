@@ -22,6 +22,7 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.http.StreamPriority;
 import io.vertx.core.http.impl.headers.HeadersMultiMap;
@@ -34,9 +35,11 @@ import io.vertx.core.http.impl.headers.HeadersMultiMap;
 public class DummyHttpClientRequest implements HttpClientRequest {
 
     private final MultiMap headers;
+    private final HttpConnection connection;
 
     public DummyHttpClientRequest() {
         this.headers = new HeadersMultiMap();
+        this.connection = new ThrowingOnGoAwayHttpConnection();
     }
 
     @Override
@@ -279,7 +282,7 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public io.vertx.core.http.HttpConnection connection() {
-        return null;
+        return connection;
     }
 
     @Override

@@ -1,3 +1,10 @@
+## [2.0.10](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.9...2.0.10) (2022-12-22)
+
+
+### Bug Fixes
+
+* log properly connection error from vertx ([7603160](https://github.com/gravitee-io/gravitee-connector-http/commit/7603160b631734d5f25f7f15543233fb483227aa))
+
 ## [2.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.8...2.0.9) (2022-11-03)
 
 

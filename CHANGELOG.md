@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.10...2.1.0) (2023-01-23)
+
+
+### Features
+
+* websocket frame compression support ([d90695d](https://github.com/gravitee-io/gravitee-connector-http/commit/d90695d22dca92996063618677ab892de7d65085)), closes [gravitee-io/issues#8689](https://github.com/gravitee-io/issues/issues/8689)
+
 ## [2.0.10](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.9...2.0.10) (2022-12-22)
 
 

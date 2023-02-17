@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.0...2.1.1) (2023-02-17)
+
+
+### Bug Fixes
+
+* update validation spec in API proxy config schema form ([81a4fbf](https://github.com/gravitee-io/gravitee-connector-http/commit/81a4fbf836a728029fe641277e63eda7b615822e)), closes [gravitee-io/issues#8698](https://github.com/gravitee-io/issues/issues/8698)
+
 # [2.1.0](https://github.com/gravitee-io/gravitee-connector-http/compare/2.0.10...2.1.0) (2023-01-23)
 
 

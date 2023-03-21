@@ -1,3 +1,10 @@
+## [2.1.2](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.1...2.1.2) (2023-03-21)
+
+
+### Bug Fixes
+
+* avoid chunk corruption with tls and http1.1 ([a5da167](https://github.com/gravitee-io/gravitee-connector-http/commit/a5da167a1ddf1743a0b1a0cd1d81e44b4642dbed))
+
 ## [2.1.1](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.0...2.1.1) (2023-02-17)
 
 

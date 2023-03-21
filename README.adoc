@@ -1,13 +1,12 @@
 = HTTP Connector
 
 ifdef::env-github[]
-image:https://img.shields.io/static/v1?label=Available%20at&message=Gravitee.io&color=1EC9D2["Gravitee.io", link="https://download.gravitee.io/#graviteeio-apim/plugins/connectors/gravitee-connector-http/"]
-image:https://img.shields.io/badge/License-Apache%202.0-blue.svg["License", link="https://github.com/gravitee-io/gravitee-connector-http/blob/master/LICENSE.txt"]
-image:https://img.shields.io/badge/semantic--release-conventional%20commits-e10079?logo=semantic-release["Releases", link="https://github.com/gravitee-io/gravitee-connector-http/releases"]
-image:https://circleci.com/gh/gravitee-io/gravitee-connector-http.svg?style=svg["CircleCI", link="https://circleci.com/gh/gravitee-io/gravitee-connector-http"]
-image:https://f.hubspotusercontent40.net/hubfs/7600448/gravitee-github-button.jpg["Join the community forum", link="https://community.gravitee.io?utm_source=readme", height=20]
+image:https://img.shields.io/static/v1?label=Available%20at&message=Gravitee.io&color=1EC9D2["Gravitee.io",link="https://download.gravitee.io/#graviteeio-apim/plugins/connectors/gravitee-connector-http/"]
+image:https://img.shields.io/badge/License-Apache%202.0-blue.svg["License",link="https://github.com/gravitee-io/gravitee-connector-http/blob/master/LICENSE.txt"]
+image:https://img.shields.io/badge/semantic--release-conventional%20commits-e10079?logo=semantic-release["Releases",link="https://github.com/gravitee-io/gravitee-connector-http/releases"]
+image:https://circleci.com/gh/gravitee-io/gravitee-connector-http.svg?style=svg["CircleCI",link="https://circleci.com/gh/gravitee-io/gravitee-connector-http"]
+image:https://f.hubspotusercontent40.net/hubfs/7600448/gravitee-github-button.jpg["Join the community forum",link="https://community.gravitee.io?utm_source=readme", height=20]
 endif::[]
-
 
 == Description
 
@@ -18,7 +17,8 @@ The HTTP connector implements the SME Connector API in order to provide native i
 |===
 |Plugin version | APIM version
 
-|2.x and upper                  | 3.18.x to latest
-|1.1.x and upper                | 3.15.x to 3.17.x
-|1.0.x and upper                | 3.13.x to 3.14.x
+|3.x                            | 3.21.x to latest
+|2.x                            | 3.18.x to 3.20.x
+|1.1.x                          | 3.15.x to 3.17.x
+|1.0.x                          | 3.13.x to 3.14.x
 |===

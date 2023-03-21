@@ -24,7 +24,7 @@
     <parent>
         <groupId>io.gravitee</groupId>
         <artifactId>gravitee-parent</artifactId>
-        <version>20.0</version>
+        <version>21.0.0</version>
     </parent>
 
     <groupId>io.gravitee.connector</groupId>
@@ -34,11 +34,14 @@
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
-        <gravitee-bom.version>1.4</gravitee-bom.version>
-        <gravitee-common.version>1.27.0</gravitee-common.version>
+        <gravitee-bom.version>4.0.0</gravitee-bom.version>
+        <gravitee-common.version>2.1.0</gravitee-common.version>
         <gravitee-connector-api.version>1.1.5</gravitee-connector-api.version>
-        <gravitee-gateway-api.version>1.47.0</gravitee-gateway-api.version>
-        <gravitee-expression-language.version>1.11.4</gravitee-expression-language.version>
+        <gravitee-gateway-api.version>2.1.0</gravitee-gateway-api.version>
+        <gravitee-expression-language.version>2.1.1</gravitee-expression-language.version>
+
+        <maven-assembly-plugin.version>3.5.0</maven-assembly-plugin.version>
+        <prettier-maven-plugin.version>0.19</prettier-maven-plugin.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
     </properties>
@@ -134,7 +137,7 @@
         <plugins>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.3.0</version>
+                <version>${maven-assembly-plugin.version}</version>
                 <configuration>
                     <appendAssemblyId>false</appendAssemblyId>
                     <descriptors>
@@ -154,10 +157,9 @@
             <plugin>
                 <groupId>com.hubspot.maven.plugins</groupId>
                 <artifactId>prettier-maven-plugin</artifactId>
-                <version>0.18</version>
+                <version>${prettier-maven-plugin.version}</version>
                 <configuration>
-                    <nodeVersion>12.13.0</nodeVersion>
-                    <prettierJavaVersion>1.6.1</prettierJavaVersion>
+                    <prettierJavaVersion>2.1.0</prettierJavaVersion>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>

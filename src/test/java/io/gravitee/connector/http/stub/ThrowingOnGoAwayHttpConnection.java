@@ -126,7 +126,17 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
     }
 
     @Override
+    public SocketAddress remoteAddress(boolean real) {
+        return null;
+    }
+
+    @Override
     public SocketAddress localAddress() {
+        return null;
+    }
+
+    @Override
+    public SocketAddress localAddress(boolean real) {
         return null;
     }
 

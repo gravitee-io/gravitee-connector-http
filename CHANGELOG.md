@@ -1,3 +1,10 @@
+## [2.1.3](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.2...2.1.3) (2023-03-22)
+
+
+### Bug Fixes
+
+* use dedicated EL context when creating connector ([db4d923](https://github.com/gravitee-io/gravitee-connector-http/commit/db4d92354b039dfdb74f5b474dc4909325fd76e8))
+
 ## [2.1.2](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.1...2.1.2) (2023-03-21)
 
 

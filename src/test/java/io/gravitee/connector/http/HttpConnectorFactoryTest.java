@@ -16,6 +16,7 @@
 package io.gravitee.connector.http;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -27,9 +28,16 @@ import io.gravitee.connector.api.ConnectorBuilder;
 import io.gravitee.connector.api.ConnectorContext;
 import io.gravitee.connector.http.grpc.GrpcConnector;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.Test;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 public class HttpConnectorFactoryTest {
 
@@ -80,6 +88,64 @@ public class HttpConnectorFactoryTest {
         Connector<Connection, ProxyRequest> connector = factory.create(target, configuration, connectorBuilder);
         assertThat(connector).isInstanceOf(HttpConnector.class);
         assertThat(((HttpConnector) connector).endpoint.target()).isEqualTo(target);
+    }
+
+    @Test
+    public void shouldCreateAConnectorInParallelWithSpELEndpoint() {
+        // The following test tries to create connectors with high concurrency in order to demonstrate there is no more mix with template engine context.
+        final ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
+        threadPoolTaskExecutor.setCorePoolSize(5);
+        threadPoolTaskExecutor.setMaxPoolSize(5);
+        threadPoolTaskExecutor.setWaitForTasksToCompleteOnShutdown(false);
+        threadPoolTaskExecutor.initialize();
+
+        try {
+            long startTime = System.currentTimeMillis();
+
+            final AtomicReference<Throwable> lastError = new AtomicReference<>();
+
+            Random r = new Random(System.currentTimeMillis());
+            for (int i = 0; i < 100; i++) {
+                int index = i;
+                threadPoolTaskExecutor.submit(() -> {
+                    try {
+                        final int randomDelay = r.nextInt(100);
+                        final String target = "http://localhost:8080/" + index;
+                        final String configuration =
+                            "{\"type\":\"http\", \"target\":\"{#properties['backend" + index + "']}\", \"name\":\"test\"}";
+                        final ConnectorContext context = new ConnectorContext();
+                        final ConnectorBuilder connectorBuilder = mock(ConnectorBuilder.class);
+
+                        context.setProperties(Map.of("backend" + index, target));
+
+                        when(connectorBuilder.getContext()).thenReturn(context);
+                        when(connectorBuilder.getMapper()).thenReturn(mapper);
+
+                        // Apply a random delay to make sure connectors are created with high concurrency pressure.
+                        Thread.sleep(randomDelay);
+
+                        Connector<Connection, ProxyRequest> connector = factory.create(target, configuration, connectorBuilder);
+                        assertThat(connector).isInstanceOf(HttpConnector.class);
+                        assertThat(((HttpConnector) connector).endpoint.target()).isEqualTo(target);
+                    } catch (Throwable e) {
+                        lastError.set(e);
+                    }
+                });
+            }
+
+            final ThreadPoolExecutor executor = threadPoolTaskExecutor.getThreadPoolExecutor();
+            while (executor.getActiveCount() > 0 || !executor.getQueue().isEmpty()) {
+                if (System.currentTimeMillis() - startTime > 10000) {
+                    fail("Not completed after 1000ms");
+                }
+            }
+
+            if (lastError.get() != null) {
+                fail("EL evaluation failed", lastError.get());
+            }
+        } finally {
+            threadPoolTaskExecutor.shutdown();
+        }
     }
 
     @Test

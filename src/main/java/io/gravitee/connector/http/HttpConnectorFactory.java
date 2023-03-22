@@ -30,8 +30,6 @@ import java.util.Collection;
  */
 public class HttpConnectorFactory implements ConnectorFactory<Connector<Connection, ProxyRequest>> {
 
-    private final TemplateEngine templateEngine = TemplateEngine.templateEngine();
-
     private final HttpEndpointFactory endpointFactory = new HttpEndpointFactory();
 
     private static final Collection<String> SUPPORTED_TYPES = Arrays.asList("http", "grpc");
@@ -54,29 +52,32 @@ public class HttpConnectorFactory implements ConnectorFactory<Connector<Connecti
     }
 
     private HttpEndpoint resolve(final HttpEndpoint httpEndpoint, final ConnectorContext context) {
+        // We need a dedicated engine with a fresh context to avoid mixing variables from different apis.
+        final TemplateEngine templateEngine = TemplateEngine.templateEngine();
+
         if (context != null) {
             templateEngine.getTemplateContext().setVariable("properties", context.getProperties());
         }
 
         // HTTP endpoint configuration
-        httpEndpoint.target(convert(httpEndpoint.target()));
+        httpEndpoint.target(convert(templateEngine, httpEndpoint.target()));
 
         // HTTP Proxy configuration
         if (httpEndpoint.getHttpProxy() != null) {
-            httpEndpoint.getHttpProxy().setHost(convert(httpEndpoint.getHttpProxy().getHost()));
-            httpEndpoint.getHttpProxy().setUsername(convert(httpEndpoint.getHttpProxy().getUsername()));
-            httpEndpoint.getHttpProxy().setPassword(convert(httpEndpoint.getHttpProxy().getPassword()));
+            httpEndpoint.getHttpProxy().setHost(convert(templateEngine, httpEndpoint.getHttpProxy().getHost()));
+            httpEndpoint.getHttpProxy().setUsername(convert(templateEngine, httpEndpoint.getHttpProxy().getUsername()));
+            httpEndpoint.getHttpProxy().setPassword(convert(templateEngine, httpEndpoint.getHttpProxy().getPassword()));
         }
 
         // Default HTTP headers
         if (httpEndpoint.getHeaders() != null && !httpEndpoint.getHeaders().isEmpty()) {
-            httpEndpoint.getHeaders().forEach(httpHeader -> httpHeader.setValue(convert(httpHeader.getValue())));
+            httpEndpoint.getHeaders().forEach(httpHeader -> httpHeader.setValue(convert(templateEngine, httpHeader.getValue())));
         }
 
         return httpEndpoint;
     }
 
-    private String convert(String value) {
+    private String convert(TemplateEngine templateEngine, String value) {
         if (value != null && !value.isEmpty()) {
             return templateEngine.getValue(value, String.class);
         }

@@ -1,3 +1,22 @@
+# [3.0.0](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.2...3.0.0) (2023-03-22)
+
+
+### Bug Fixes
+
+* bump dependencies ([29f709e](https://github.com/gravitee-io/gravitee-connector-http/commit/29f709e5019d063e1d6a83b21ee27cf5feeda357))
+
+
+### Features
+
+* reapply ByteBuf optimization ([44f1a3d](https://github.com/gravitee-io/gravitee-connector-http/commit/44f1a3d1ae9213c6f3745b7174c695cc24e36999))
+
+
+### BREAKING CHANGES
+
+* Need Vert.x `4.3.5` or higher
+
+Need Vert.x `4.3.5` or higher due to this issue https://github.com/eclipse-vertx/vert.x/issues/4509
+
 ## [2.1.2](https://github.com/gravitee-io/gravitee-connector-http/compare/2.1.1...2.1.2) (2023-03-21)
 
 

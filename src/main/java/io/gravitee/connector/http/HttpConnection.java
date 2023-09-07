@@ -198,7 +198,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             response.cancelHandler(tracker);
 
             // Copy body content
-            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event)));
+            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
 
             // Signal end of the response
             clientResponse.endHandler(event -> {

@@ -24,6 +24,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
 
@@ -59,5 +60,13 @@ public class GrpcConnection extends HttpConnection<HttpResponse> {
                 // Always set chunked mode for gRPC transport
                 return httpClientRequest.setChunked(true);
             });
+    }
+
+    @Override
+    protected void writeUpstreamHeaders() {
+        super.writeUpstreamHeaders();
+
+        // Remove host header because gRPC is HTTP/2
+        httpClientRequest.headers().remove(HttpHeaders.HOST);
     }
 }

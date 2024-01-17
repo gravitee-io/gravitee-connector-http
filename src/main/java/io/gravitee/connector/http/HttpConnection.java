@@ -69,7 +69,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         HOP_HEADERS = Collections.unmodifiableSet(hopHeaders);
     }
 
-    private HttpClientRequest httpClientRequest;
+    protected HttpClientRequest httpClientRequest;
     private final ProxyRequest request;
     private T response;
     private Handler<Throwable> timeoutHandler;

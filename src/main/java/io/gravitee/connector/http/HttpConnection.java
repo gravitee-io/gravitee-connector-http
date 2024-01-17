@@ -321,7 +321,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             .headers()
             .names()
             .forEach(name -> {
-                httpClientRequest.headers().add(name, request.headers().getAll(name));
+                httpClientRequest.headers().set(name, request.headers().getAll(name));
             });
     }
 

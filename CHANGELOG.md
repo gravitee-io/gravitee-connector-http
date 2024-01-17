@@ -1,3 +1,11 @@
+## [3.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.1...3.0.2) (2024-01-17)
+
+
+### Bug Fixes
+
+* prevent adding duplicated headers to the backend request ([0785edf](https://github.com/gravitee-io/gravitee-connector-http/commit/0785edfbfac0bdb185f8061bf7e21559bfa31eb5))
+* remove host headers in GrpcConnection ([09c4c9c](https://github.com/gravitee-io/gravitee-connector-http/commit/09c4c9c3b0c6eda29442f2aa78eb136153867088))
+
 ## [3.0.1](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.0...3.0.1) (2023-03-22)
 
 

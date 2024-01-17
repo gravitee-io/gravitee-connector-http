@@ -38,7 +38,7 @@
         <gravitee-common.version>2.1.0</gravitee-common.version>
         <gravitee-connector-api.version>1.1.5</gravitee-connector-api.version>
         <gravitee-gateway-api.version>2.1.0</gravitee-gateway-api.version>
-        <gravitee-expression-language.version>2.1.1</gravitee-expression-language.version>
+        <gravitee-expression-language.version>2.2.1</gravitee-expression-language.version>
 
         <maven-assembly-plugin.version>3.5.0</maven-assembly-plugin.version>
         <prettier-maven-plugin.version>0.19</prettier-maven-plugin.version>

@@ -13,46 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.connector.http;
+package io.gravitee.connector.http.grpc;
 
-import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.stub.DummyHttpClientRequest;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
-import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Future;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.util.concurrent.atomic.AtomicInteger;
+import io.vertx.core.http.RequestOptions;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
- * @author GraviteeSource Team
- */
 @RunWith(MockitoJUnitRunner.class)
-public class HttpConnectionTest {
-
+public class GrpcConnectionTest {
     public static final String FIRST_HEADER = "First-Header";
     public static final String SECOND_HEADER = "Second-Header";
     public static final String FIRST_HEADER_VALUE_1 = "first-header-value-1";
@@ -60,7 +49,7 @@ public class HttpConnectionTest {
     public static final String SECOND_HEADER_VALUE = "second-header-value";
     protected static final String BROTLI = "br";
 
-    private HttpConnection<HttpResponse> cut;
+    private GrpcConnection cut;
 
     @Mock
     private HttpEndpoint endpoint;
@@ -71,46 +60,35 @@ public class HttpConnectionTest {
     @Mock
     private HttpClient client;
 
-    @Spy
-    private HttpClientRequest httpClientRequest = new DummyHttpClientRequest();
+    private HttpClientRequest httpClientRequest;
 
     private HttpHeaders headers;
     private HttpClientOptions httpClientOptions;
 
     @Before
     public void setUp() {
-        cut = new HttpConnection<>(endpoint, request);
+        cut = new GrpcConnection(endpoint, request);
 
         headers = HttpHeaders.create();
         headers.add(FIRST_HEADER, FIRST_HEADER_VALUE_1);
         headers.add(FIRST_HEADER, FIRST_HEADER_VALUE_2);
         headers.add(SECOND_HEADER, SECOND_HEADER_VALUE);
+        headers.add(HttpHeaderNames.HOST, "my-host");
         headers.add(HttpHeaderNames.TRANSFER_ENCODING, "transfer_encoding");
 
         when(request.headers()).thenReturn(headers);
-        when(request.method()).thenReturn(HttpMethod.GET);
 
         httpClientOptions = new HttpClientOptions();
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
-        when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
+        when(client.request(any(RequestOptions.class))).thenAnswer(invocation -> {
+            RequestOptions options = invocation.getArgument(0);
+            httpClientRequest = spy(new DummyHttpClientRequest(options));
+            return Future.succeededFuture(httpClientRequest);
+        });
     }
 
     @Test
-    public void shouldSetMetricsMessageWithVertxConnectionException() {
-        final Metrics requestMetrics = Metrics.on(System.currentTimeMillis()).build();
-        requestMetrics.setApi("api-id");
-        requestMetrics.setRequestId("request-id");
-        when(request.metrics()).thenReturn(requestMetrics);
-
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
-        // Rely on testing class ThrowingOnGoAwayHttpConnection to make the connection fail and trigger the exceptionHandler we want to test
-        httpClientRequest.connection().goAway(204, 1, Buffer.buffer("💥 Connection error"));
-
-        assertThat(requestMetrics.getMessage()).isEqualTo("💥 Connection error");
-    }
-
-    @Test
-    public void shouldWriteUpstreamHeaders() {
+    public void should_write_upstream_headers() {
         cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
@@ -122,55 +100,25 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldPropagateClientAcceptEncodingHeader() {
-        httpClientOptions.setUseCompression(false);
-        httpClientOptions.setPropagateClientAcceptEncoding(true);
-
-        headers.set(ACCEPT_ENCODING, BROTLI);
+    public void should_prevent_duplicated_headers() {
         cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        headers.add(HttpHeaderNames.CONTENT_TYPE, "application/grpc");
 
         cut.writeUpstreamHeaders();
 
-        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(1).containsExactly(BROTLI);
+        assertThat(httpClientRequest.headers().getAll(HttpHeaderNames.CONTENT_TYPE)).hasSize(1).containsExactly("application/grpc");
     }
 
     @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenNoHeader() {
-        httpClientOptions.setUseCompression(false);
-        httpClientOptions.setPropagateClientAcceptEncoding(true);
-
+    public void should_remove_host_header() {
         cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 
-        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
+        assertThat(httpClientRequest.headers().contains(HttpHeaderNames.HOST)).isFalse();
     }
 
-    @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenCompressionIsEnabled() {
-        httpClientOptions.setUseCompression(true);
-        httpClientOptions.setPropagateClientAcceptEncoding(true);
-
-        headers.set(ACCEPT_ENCODING, BROTLI);
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
-
-        cut.writeUpstreamHeaders();
-
-        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
-    }
-
-    @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenPropagateIsDisabled() {
-        httpClientOptions.setUseCompression(false);
-        httpClientOptions.setPropagateClientAcceptEncoding(false);
-
-        headers.set(ACCEPT_ENCODING, BROTLI);
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
-
-        cut.writeUpstreamHeaders();
-
-        assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
-    }
 
     private int getAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {

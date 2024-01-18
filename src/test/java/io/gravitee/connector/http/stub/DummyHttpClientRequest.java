@@ -24,6 +24,7 @@ import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpVersion;
+import io.vertx.core.http.RequestOptions;
 import io.vertx.core.http.StreamPriority;
 import io.vertx.core.http.impl.headers.HeadersMultiMap;
 
@@ -37,8 +38,15 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     private final MultiMap headers;
     private final HttpConnection connection;
 
+    private boolean chunked = false;
+
     public DummyHttpClientRequest() {
         this.headers = new HeadersMultiMap();
+        this.connection = new ThrowingOnGoAwayHttpConnection();
+    }
+
+    public DummyHttpClientRequest(RequestOptions options) {
+        this.headers = new HeadersMultiMap().addAll(options.getHeaders());
         this.connection = new ThrowingOnGoAwayHttpConnection();
     }
 
@@ -82,7 +90,7 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest setPort(int port) {
-        return null;
+        return this;
     }
 
     @Override
@@ -92,17 +100,18 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest setFollowRedirects(boolean followRedirects) {
-        return null;
+        return this;
     }
 
     @Override
     public HttpClientRequest setMaxRedirects(int maxRedirects) {
-        return null;
+        return this;
     }
 
     @Override
     public HttpClientRequest setChunked(boolean chunked) {
-        return null;
+        this.chunked = chunked;
+        return this;
     }
 
     @Override
@@ -117,7 +126,7 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest setMethod(io.vertx.core.http.HttpMethod method) {
-        return null;
+        return this;
     }
 
     @Override
@@ -132,7 +141,7 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest setURI(String uri) {
-        return null;
+        return this;
     }
 
     @Override

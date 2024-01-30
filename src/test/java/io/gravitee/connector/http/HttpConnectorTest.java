@@ -25,35 +25,37 @@ import io.gravitee.connector.api.Connection;
 import io.gravitee.connector.api.EndpointException;
 import io.gravitee.connector.http.endpoint.HttpClientSslOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
-import io.gravitee.connector.http.endpoint.TrustStore;
 import io.gravitee.connector.http.endpoint.jks.JKSKeyStore;
 import io.gravitee.connector.http.endpoint.jks.JKSTrustStore;
 import io.gravitee.connector.http.endpoint.pkcs12.PKCS12KeyStore;
 import io.gravitee.connector.http.endpoint.pkcs12.PKCS12TrustStore;
+import io.gravitee.connector.http.ws.WebSocketConnection;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.gateway.api.proxy.ws.WebSocketProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientOptions;
-import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.*;
 import io.vertx.core.http.HttpConnection;
-import io.vertx.core.http.RequestOptions;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class HttpConnectorTest {
 
     private static final String TRUSTSTORE = "gravitee-truststore";
@@ -91,7 +93,7 @@ public class HttpConnectorTest {
 
     io.gravitee.connector.http.endpoint.HttpClientOptions httpClientsOptions = new io.gravitee.connector.http.endpoint.HttpClientOptions();
 
-    @Before
+    @BeforeEach
     public void setUp() throws Exception {
         httpClientsOptions.setConnectTimeout(0L);
         httpClientsOptions.setReadTimeout(0L);
@@ -99,18 +101,18 @@ public class HttpConnectorTest {
         when(configuration.getProperty("http.ssl.openssl", Boolean.class, false)).thenReturn(false);
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientsOptions);
         when(endpoint.target()).thenReturn(target);
-        when(request.method()).thenReturn(HttpMethod.GET);
-        when(request.uri()).thenReturn(target);
-        when(request.metrics()).thenReturn(Metrics.on(0L).build());
+        lenient().when(request.method()).thenReturn(HttpMethod.GET);
+        lenient().when(request.uri()).thenReturn(target);
+        lenient().when(request.metrics()).thenReturn(Metrics.on(0L).build());
         HttpClientRequest httpClientRequest = mock(HttpClientRequest.class);
-        when(httpClient.request(any(RequestOptions.class))).thenReturn(Future.succeededFuture(httpClientRequest));
+        lenient().when(httpClient.request(any(RequestOptions.class))).thenReturn(Future.succeededFuture(httpClientRequest));
         connector.httpClients.put(Thread.currentThread(), httpClient);
-        when(request.headers()).thenReturn(spyHeaders);
-        when(httpClientRequest.connection()).thenReturn(mock(HttpConnection.class));
+        lenient().when(request.headers()).thenReturn(spyHeaders);
+        lenient().when(httpClientRequest.connection()).thenReturn(mock(HttpConnection.class));
         connector.doStart();
     }
 
-    @After
+    @AfterEach
     public void tearDown() throws Exception {
         connector.doStop();
     }
@@ -179,5 +181,32 @@ public class HttpConnectorTest {
         assertEquals(KEYSTORE, httpClientOptions.getKeyStoreOptions().getValue().toString());
         assertNotNull(httpClientOptions.getTrustOptions());
         assertEquals(TRUSTSTORE, httpClientOptions.getTrustStoreOptions().getValue().toString());
+    }
+
+    @Nested
+    class Create {
+
+        @ParameterizedTest
+        @ValueSource(strings = { "Upgrade", "upgrade", "UPGRADE", "Upgrade,Keep-Alive" })
+        public void should_create_websocket_connection(String connectionHeader) {
+            HttpHeaders headers = HttpHeaders.create();
+            headers.add("Connection", connectionHeader);
+            headers.add("Upgrade", "websocket");
+
+            WebSocketProxyRequest request = mock(WebSocketProxyRequest.class);
+            when(request.method()).thenReturn(HttpMethod.GET);
+            when(request.headers()).thenReturn(headers);
+
+            AbstractHttpConnection<HttpEndpoint> connection = connector.create(request);
+
+            Assertions.assertThat(connection).isInstanceOf(WebSocketConnection.class);
+        }
+
+        @Test
+        public void should_create_http_connection() {
+            AbstractHttpConnection<HttpEndpoint> connection = connector.create(request);
+
+            Assertions.assertThat(connection).isInstanceOf(io.gravitee.connector.http.HttpConnection.class);
+        }
     }
 }

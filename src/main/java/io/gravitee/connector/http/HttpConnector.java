@@ -40,7 +40,7 @@ public class HttpConnector extends AbstractHttpConnector<HttpEndpoint> {
 
         boolean websocket =
             request.method() == HttpMethod.GET &&
-            HttpHeaderValues.UPGRADE.contentEqualsIgnoreCase(connectionHeader) &&
+            (connectionHeader != null && connectionHeader.toLowerCase().contains(HttpHeaderValues.UPGRADE)) &&
             HttpHeaderValues.WEBSOCKET.contentEqualsIgnoreCase(upgradeHeader);
 
         return websocket ? new WebSocketConnection(endpoint, request) : new HttpConnection<>(endpoint, request);

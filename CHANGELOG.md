@@ -1,3 +1,10 @@
+## [3.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.2...3.0.3) (2024-01-30)
+
+
+### Bug Fixes
+
+* detects websocket connection with multi-value connection header ([bb4c392](https://github.com/gravitee-io/gravitee-connector-http/commit/bb4c392d2a9c3ed8af48778580f5ddde9087a327))
+
 ## [3.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.1...3.0.2) (2024-01-17)
 
 

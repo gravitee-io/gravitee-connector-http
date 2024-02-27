@@ -145,12 +145,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             if (
                 timeoutHandler() != null &&
-                (
-                    cause instanceof ConnectException ||
+                (cause instanceof ConnectException ||
                     cause instanceof TimeoutException ||
                     cause instanceof NoRouteToHostException ||
-                    cause instanceof UnknownHostException
-                )
+                    cause instanceof UnknownHostException)
             ) {
                 handleConnectTimeout(cause);
             } else {
@@ -218,8 +216,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 tracker.handle(null);
             });
 
-            clientResponse.customFrameHandler(frame ->
-                response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload())))
+            clientResponse.customFrameHandler(
+                frame -> response.writeCustomFrame(HttpFrame.create(frame.type(), frame.flags(), Buffer.buffer(frame.payload())))
             );
 
             // And send it to the client

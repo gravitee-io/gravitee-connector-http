@@ -69,20 +69,8 @@
         "idleTimeout": {
           "type": "integer",
           "title": "Idle timeout (ms)",
-          "description": "Maximum time a connection will timeout and be closed if no data is received within the timeout.",
+          "description": "Maximum time a connection will be opened if no data is received nor sent. Once the timeout has elapsed, the unused connection will be closed, allowing to free the associated resources.",
           "default": 60000
-        },
-        "followRedirects": {
-          "title": "Follow HTTP redirects",
-          "description": "When the client receives a status code in the range 3xx, it follows the redirection provided by the Location response header",
-          "type": "boolean",
-          "default": false
-        },
-        "maxConcurrentConnections": {
-          "type": "integer",
-          "title": "Max Concurrent Connections",
-          "description": "Maximum pool size for connections.",
-          "default": 100
         },
         "propagateClientAcceptEncoding": {
           "title": "Propagate client Accept-Encoding header (no decompression if any)",
@@ -98,9 +86,27 @@
               }
             ]
           }
+        },
+        "keepAliveTimeout": {
+          "type": "integer",
+          "title": "Keep-alive timeout (ms)",
+          "description": "Maximum time a connection will remain unused in the pool in milliseconds. Once the timeout has elapsed, the unused connection will be evicted.",
+          "default": 30000
+        },
+        "followRedirects": {
+          "title": "Follow HTTP redirects",
+          "description": "When the client receives a status code in the range 3xx, it follows the redirection provided by the Location response header",
+          "type": "boolean",
+          "default": false
+        },
+        "maxConcurrentConnections": {
+          "type": "integer",
+          "title": "Max Concurrent Connections",
+          "description": "Maximum pool size for connections.",
+          "default": 100
         }
       },
-      "required": ["connectTimeout", "readTimeout", "idleTimeout", "maxConcurrentConnections"]
+      "required": ["connectTimeout", "readTimeout", "idleTimeout", "keepAliveTimeout", "maxConcurrentConnections"]
     },
     "headers": {
       "type": "array",

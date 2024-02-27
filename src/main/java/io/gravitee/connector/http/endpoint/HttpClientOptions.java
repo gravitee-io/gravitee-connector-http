@@ -24,6 +24,7 @@ import java.io.Serializable;
 public class HttpClientOptions implements Serializable {
 
     public static long DEFAULT_IDLE_TIMEOUT = 60000;
+    public static long DEFAULT_KEEP_ALIVE_TIMEOUT = 30000;
     public static long DEFAULT_CONNECT_TIMEOUT = 5000;
     public static long DEFAULT_READ_TIMEOUT = 10000;
     public static int DEFAULT_MAX_CONCURRENT_CONNECTIONS = 100;
@@ -36,6 +37,8 @@ public class HttpClientOptions implements Serializable {
     public static ProtocolVersion DEFAULT_PROTOCOL_VERSION = ProtocolVersion.HTTP_1_1;
 
     private long idleTimeout = DEFAULT_IDLE_TIMEOUT;
+
+    private long keepAliveTimeout = DEFAULT_KEEP_ALIVE_TIMEOUT;
 
     private long connectTimeout = DEFAULT_CONNECT_TIMEOUT;
 
@@ -71,6 +74,14 @@ public class HttpClientOptions implements Serializable {
 
     public void setIdleTimeout(long idleTimeout) {
         this.idleTimeout = idleTimeout;
+    }
+
+    public long getKeepAliveTimeout() {
+        return keepAliveTimeout;
+    }
+
+    public void setKeepAliveTimeout(long keepAliveTimeout) {
+        this.keepAliveTimeout = keepAliveTimeout;
     }
 
     public boolean isKeepAlive() {

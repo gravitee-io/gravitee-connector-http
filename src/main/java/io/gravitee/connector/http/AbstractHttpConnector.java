@@ -184,6 +184,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         options.setPipelining(endpoint.getHttpClientOptions().isPipelining());
         options.setKeepAlive(endpoint.getHttpClientOptions().isKeepAlive());
         options.setIdleTimeout((int) (endpoint.getHttpClientOptions().getIdleTimeout() / 1000));
+        options.setKeepAliveTimeout((int) (endpoint.getHttpClientOptions().getKeepAliveTimeout() / 1000));
         options.setConnectTimeout((int) endpoint.getHttpClientOptions().getConnectTimeout());
         options.setMaxPoolSize(endpoint.getHttpClientOptions().getMaxConcurrentConnections());
         options.setTryUseCompression(endpoint.getHttpClientOptions().isUseCompression());
@@ -389,6 +390,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             '\'' +
             ", KeepAlive='" +
             options.isKeepAlive() +
+            '\'' +
+            ", KeepAliveTimeout='" +
+            options.getKeepAliveTimeout() +
             '\'' +
             ", IdleTimeout='" +
             options.getIdleTimeout() +

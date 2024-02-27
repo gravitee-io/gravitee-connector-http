@@ -17,7 +17,7 @@ The HTTP connector implements the SME Connector API in order to provide native i
 |===
 |Plugin version | APIM version
 
-|3.x                            | 3.21.x to latest
+|3.x                            | 4.0.x to latest
 |2.x                            | 3.18.x to 3.20.x
 |1.1.x                          | 3.15.x to 3.17.x
 |1.0.x                          | 3.13.x to 3.14.x

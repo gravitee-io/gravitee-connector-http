@@ -15,7 +15,6 @@
  */
 package io.gravitee.connector.http.grpc;
 
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
@@ -31,17 +30,18 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.RequestOptions;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @RunWith(MockitoJUnitRunner.class)
 public class GrpcConnectionTest {
+
     public static final String FIRST_HEADER = "First-Header";
     public static final String SECOND_HEADER = "Second-Header";
     public static final String FIRST_HEADER_VALUE_1 = "first-header-value-1";
@@ -118,7 +118,6 @@ public class GrpcConnectionTest {
 
         assertThat(httpClientRequest.headers().contains(HttpHeaderNames.HOST)).isFalse();
     }
-
 
     private int getAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {

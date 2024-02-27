@@ -41,7 +41,7 @@
         <gravitee-expression-language.version>2.1.1</gravitee-expression-language.version>
 
         <maven-assembly-plugin.version>3.5.0</maven-assembly-plugin.version>
-        <prettier-maven-plugin.version>0.19</prettier-maven-plugin.version>
+        <prettier-maven-plugin.version>0.22</prettier-maven-plugin.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
     </properties>
@@ -174,7 +174,7 @@
                 <artifactId>prettier-maven-plugin</artifactId>
                 <version>${prettier-maven-plugin.version}</version>
                 <configuration>
-                    <prettierJavaVersion>2.1.0</prettierJavaVersion>
+                    <prettierJavaVersion>2.6.0</prettierJavaVersion>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>

@@ -170,10 +170,9 @@
             <plugin>
                 <groupId>com.hubspot.maven.plugins</groupId>
                 <artifactId>prettier-maven-plugin</artifactId>
-                <version>0.18</version>
+                <version>0.22</version>
                 <configuration>
-                    <nodeVersion>12.13.0</nodeVersion>
-                    <prettierJavaVersion>1.6.1</prettierJavaVersion>
+                    <prettierJavaVersion>2.6.0</prettierJavaVersion>
                     <skip>${skipTests}</skip>
                 </configuration>
                 <executions>

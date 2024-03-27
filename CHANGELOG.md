@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.3...3.1.0) (2024-03-27)
+
+
+### Features
+
+* allow to configure keep-alive timeout ([847a27a](https://github.com/gravitee-io/gravitee-connector-http/commit/847a27ae4d0a2ab1f6b96e2e022e1d9dc19f0bc6))
+
 ## [3.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.2...3.0.3) (2024-01-30)
 
 

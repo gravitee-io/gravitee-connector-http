@@ -1,3 +1,10 @@
+## [3.1.1](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.0...3.1.1) (2024-03-28)
+
+
+### Bug Fixes
+
+* make keepaliveTimeout not required ([769d87d](https://github.com/gravitee-io/gravitee-connector-http/commit/769d87d22eac55a4f3377e054bd1c9bf339b94f5))
+
 # [3.1.0](https://github.com/gravitee-io/gravitee-connector-http/compare/3.0.3...3.1.0) (2024-03-27)
 
 

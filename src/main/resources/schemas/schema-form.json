@@ -106,7 +106,7 @@
           "default": 100
         }
       },
-      "required": ["connectTimeout", "readTimeout", "idleTimeout", "keepAliveTimeout", "maxConcurrentConnections"]
+      "required": ["connectTimeout", "readTimeout", "idleTimeout", "maxConcurrentConnections"]
     },
     "headers": {
       "type": "array",

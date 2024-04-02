@@ -1,11 +1,11 @@
-/**
- * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+/*
+ * Copyright © 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +15,7 @@
  */
 package io.gravitee.connector.http.stub;
 
+import io.vertx.codegen.annotations.Nullable;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -27,6 +28,8 @@ import io.vertx.core.http.HttpVersion;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.http.StreamPriority;
 import io.vertx.core.http.impl.headers.HeadersMultiMap;
+import io.vertx.core.net.HostAndPort;
+import java.util.function.Function;
 
 /**
  * Dummy implementation of {@link HttpClientRequest} for testing purpose
@@ -79,6 +82,11 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     }
 
     @Override
+    public HttpClientRequest authority(HostAndPort hostAndPort) {
+        return null;
+    }
+
+    @Override
     public HttpClientRequest setHost(String host) {
         return null;
     }
@@ -104,8 +112,23 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     }
 
     @Override
+    public boolean isFollowRedirects() {
+        return false;
+    }
+
+    @Override
     public HttpClientRequest setMaxRedirects(int maxRedirects) {
         return this;
+    }
+
+    @Override
+    public int getMaxRedirects() {
+        return 0;
+    }
+
+    @Override
+    public int numberOfRedirections() {
+        return 0;
     }
 
     @Override
@@ -184,6 +207,16 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     }
 
     @Override
+    public HttpClientRequest traceOperation(String s) {
+        return null;
+    }
+
+    @Override
+    public String traceOperation() {
+        return null;
+    }
+
+    @Override
     public HttpVersion version() {
         return null;
     }
@@ -206,6 +239,16 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest continueHandler(Handler<Void> handler) {
+        return null;
+    }
+
+    @Override
+    public HttpClientRequest earlyHintsHandler(@Nullable Handler<MultiMap> handler) {
+        return null;
+    }
+
+    @Override
+    public HttpClientRequest redirectHandler(@Nullable Function<HttpClientResponse, Future<HttpClientRequest>> function) {
         return null;
     }
 

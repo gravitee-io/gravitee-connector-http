@@ -1,11 +1,11 @@
-/**
- * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+/*
+ * Copyright © 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,10 +18,6 @@ package io.gravitee.connector.http;
 import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.gravitee.common.http.HttpMethod;
@@ -39,18 +35,18 @@ import io.vertx.core.http.HttpClientRequest;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Spy;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
  * @author GraviteeSource Team
  */
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class HttpConnectionTest {
 
     public static final String FIRST_HEADER = "First-Header";
@@ -77,7 +73,7 @@ public class HttpConnectionTest {
     private HttpHeaders headers;
     private HttpClientOptions httpClientOptions;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         cut = new HttpConnection<>(endpoint, request);
 

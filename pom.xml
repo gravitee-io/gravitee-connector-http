@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-    Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+    Copyright © 2015 The Gravitee team (http://gravitee.io)
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
 
-            http://www.apache.org/licenses/LICENSE-2.0
+        http://www.apache.org/licenses/LICENSE-2.0
 
     Unless required by applicable law or agreed to in writing, software
     distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,24 +24,24 @@
     <parent>
         <groupId>io.gravitee</groupId>
         <artifactId>gravitee-parent</artifactId>
-        <version>21.0.0</version>
+        <version>22.0.22</version>
     </parent>
 
     <groupId>io.gravitee.connector</groupId>
     <artifactId>gravitee-connector-http</artifactId>
-    <version>3.1.1</version>
+    <version>4.0.0-apim-3800-refactor-vertx-proxy-options-SNAPSHOT</version>
 
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
-        <gravitee-bom.version>4.0.0</gravitee-bom.version>
-        <gravitee-common.version>2.1.0</gravitee-common.version>
+        <gravitee-bom.version>7.0.14</gravitee-bom.version>
+        <gravitee-common.version>4.0.0</gravitee-common.version>
         <gravitee-connector-api.version>1.1.5</gravitee-connector-api.version>
-        <gravitee-gateway-api.version>2.1.0</gravitee-gateway-api.version>
-        <gravitee-expression-language.version>2.1.1</gravitee-expression-language.version>
+        <gravitee-gateway-api.version>3.5.0</gravitee-gateway-api.version>
+        <gravitee-expression-language.version>3.1.0</gravitee-expression-language.version>
+        <gravitee-node.version>5.11.0</gravitee-node.version>
 
-        <maven-assembly-plugin.version>3.5.0</maven-assembly-plugin.version>
-        <prettier-maven-plugin.version>0.22</prettier-maven-plugin.version>
+        <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
     </properties>
@@ -83,6 +83,20 @@
             <groupId>io.gravitee.el</groupId>
             <artifactId>gravitee-expression-language</artifactId>
             <version>${gravitee-expression-language.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.gravitee.node</groupId>
+            <artifactId>gravitee-node-api</artifactId>
+            <version>${gravitee-node.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.gravitee.node</groupId>
+            <artifactId>gravitee-node-vertx</artifactId>
+            <version>${gravitee-node.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -165,23 +179,6 @@
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>com.hubspot.maven.plugins</groupId>
-                <artifactId>prettier-maven-plugin</artifactId>
-                <version>${prettier-maven-plugin.version}</version>
-                <configuration>
-                    <prettierJavaVersion>2.6.0</prettierJavaVersion>
-                    <skip>${skipTests}</skip>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>check</goal>
                         </goals>
                     </execution>
                 </executions>

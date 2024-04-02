@@ -1,11 +1,11 @@
-/**
- * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+/*
+ * Copyright © 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,6 @@ package io.gravitee.connector.http;
 
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
-import io.gravitee.common.util.VertxProxyOptionsUtils;
 import io.gravitee.connector.api.AbstractConnector;
 import io.gravitee.connector.api.Connection;
 import io.gravitee.connector.api.EndpointException;
@@ -35,6 +34,7 @@ import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
+import io.gravitee.node.vertx.proxy.VertxProxyOptionsUtils;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
@@ -440,7 +440,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     private void setSystemProxy(HttpClientOptions options) {
         try {
-            VertxProxyOptionsUtils.setSystemProxy(options, configuration);
+            options.setProxyOptions(VertxProxyOptionsUtils.buildProxyOptions(configuration));
         } catch (Exception e) {
             LOGGER.warn(
                 "A service endpoint (name[{}] type[{}] target[{}]) requires a system proxy to be defined but some configurations are missing or not well defined: {}",

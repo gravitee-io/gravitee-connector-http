@@ -1,11 +1,11 @@
-/**
- * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+/*
+ * Copyright © 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,15 +28,12 @@ import io.gravitee.connector.api.ConnectorBuilder;
 import io.gravitee.connector.api.ConnectorContext;
 import io.gravitee.connector.http.grpc.GrpcConnector;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 public class HttpConnectorFactoryTest {
@@ -47,7 +44,7 @@ public class HttpConnectorFactoryTest {
 
     ConnectorBuilder connectorBuilder;
 
-    @Before
+    @BeforeEach
     public void setUp() {
         connectorBuilder = mock(ConnectorBuilder.class);
         when(connectorBuilder.getMapper()).thenReturn(mapper);
@@ -181,9 +178,7 @@ public class HttpConnectorFactoryTest {
 
         Connector<Connection, ProxyRequest> connector = factory.create(target, configuration, connectorBuilder);
         assertThat(connector).isInstanceOf(HttpConnector.class);
-        assertThat(((HttpConnector) connector).endpoint.getHeaders()).containsExactly(
-            new HttpHeader("X-Gravitee-Api", "test"),
-            new HttpHeader("Empty-Header", "")
-        );
+        assertThat(((HttpConnector) connector).endpoint.getHeaders())
+            .containsExactly(new HttpHeader("X-Gravitee-Api", "test"), new HttpHeader("Empty-Header", ""));
     }
 }

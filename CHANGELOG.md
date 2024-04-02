@@ -1,3 +1,15 @@
+# [4.0.0](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.1...4.0.0) (2024-04-02)
+
+
+### Code Refactoring
+
+* use gravitee-node VertxProxyOptionsUtils ([edb4365](https://github.com/gravitee-io/gravitee-connector-http/commit/edb4365d8867301fcbbf3c694dc5f9235ca5034e))
+
+
+### BREAKING CHANGES
+
+* requires JDK 17 and gravitee-common 4.0.0. Compatible with APIM 4.4.0 and upper.
+
 ## [3.1.1](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.0...3.1.1) (2024-03-28)
 
 

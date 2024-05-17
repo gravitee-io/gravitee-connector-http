@@ -273,13 +273,14 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     public HttpConnection<T> write(Buffer chunk) {
         // There is some request content, set the flag to true
         content = true;
+        // Request can be null in case of connectivity issue with the upstream
+        if (httpClientRequest != null) {
+            if (!headersWritten) {
+                this.writeHeaders();
+            }
 
-        if (!headersWritten) {
-            this.writeHeaders();
+            httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getNativeBuffer()));
         }
-
-        httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getNativeBuffer()));
-
         return this;
     }
 
@@ -291,7 +292,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     @Override
     public boolean writeQueueFull() {
-        return httpClientRequest.writeQueueFull();
+        // Request can be null in case of connectivity issue with the upstream
+        if (httpClientRequest != null) {
+            return httpClientRequest.writeQueueFull();
+        }
+        return false;
     }
 
     private void writeHeaders() {

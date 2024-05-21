@@ -1,3 +1,10 @@
+## [3.1.2](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.1...3.1.2) (2024-05-21)
+
+
+### Bug Fixes
+
+* ensure httpClientRequest is not null when there is request content ([654784b](https://github.com/gravitee-io/gravitee-connector-http/commit/654784bb2ce6577f5e51831fd6aa21329c14a603))
+
 ## [3.1.1](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.0...3.1.1) (2024-03-28)
 
 

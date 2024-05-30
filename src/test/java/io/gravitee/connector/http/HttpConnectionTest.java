@@ -16,6 +16,7 @@
 package io.gravitee.connector.http;
 
 import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
+import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -119,6 +120,14 @@ public class HttpConnectionTest {
         assertThat(httpClientRequest.headers().getAll(SECOND_HEADER)).hasSize(1).containsExactly(SECOND_HEADER_VALUE);
 
         assertThat(httpClientRequest.headers().getAll(FIRST_HEADER)).hasSize(2).containsExactly(FIRST_HEADER_VALUE_1, FIRST_HEADER_VALUE_2);
+    }
+
+    @Test
+    public void shouldWrite() {
+        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isNull();
+        cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer());
+        assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isEqualTo("0");
     }
 
     @Test

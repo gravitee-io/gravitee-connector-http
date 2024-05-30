@@ -281,6 +281,18 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 this.writeHeaders();
             }
 
+            /*
+            When the http connection is upgraded from http1.1 to http2, an empty body is sent, even if the request is a GET.
+            And in a GET request the CONTENT-LENGTH header does not exist.
+            To avoid any issue in that specific situation, CONTENT-LENGTH header is set to 0.
+             */
+            HttpHeaders headers = request.headers();
+            if (
+                chunk.length() == 0 && (headers == null || !headers.contains(io.gravitee.gateway.api.http.HttpHeaderNames.CONTENT_LENGTH))
+            ) {
+                httpClientRequest.headers().set(io.gravitee.gateway.api.http.HttpHeaderNames.CONTENT_LENGTH, "0");
+            }
+
             httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getNativeBuffer()));
         }
         return this;

@@ -1,3 +1,10 @@
+## [3.1.4](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.3...3.1.4) (2024-06-03)
+
+
+### Bug Fixes
+
+* handle empty chunk on http connection upgrade ([3ff647e](https://github.com/gravitee-io/gravitee-connector-http/commit/3ff647e36638809b63ea8c50ef30279e475c1191))
+
 ## [3.1.3](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.2...3.1.3) (2024-06-03)
 
 

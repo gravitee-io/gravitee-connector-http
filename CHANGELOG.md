@@ -1,3 +1,10 @@
+## [3.1.3](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.2...3.1.3) (2024-06-03)
+
+
+### Bug Fixes
+
+* pause the endpoint request when upgrading ([99b3b8c](https://github.com/gravitee-io/gravitee-connector-http/commit/99b3b8c5af80287f0ae1c98a34f00a4bae07b59c))
+
 ## [3.1.2](https://github.com/gravitee-io/gravitee-connector-http/compare/3.1.1...3.1.2) (2024-05-21)
 
 

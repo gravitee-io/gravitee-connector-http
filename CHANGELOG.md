@@ -1,3 +1,10 @@
+## [4.0.4-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4-alpha.1) (2024-10-23)
+
+
+### Bug Fixes
+
+* revert "reapply ByteBuf optimization" ([633abc5](https://github.com/gravitee-io/gravitee-connector-http/commit/633abc55eb039de9ea0082a3a6a6861b6e6570ed))
+
 ## [4.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.2...4.0.3) (2024-06-03)
 
 

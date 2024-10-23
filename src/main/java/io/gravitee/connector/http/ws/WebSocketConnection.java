@@ -19,6 +19,7 @@ import io.gravitee.common.http.HttpStatusCode;
 import io.gravitee.connector.api.response.StatusResponse;
 import io.gravitee.connector.http.AbstractHttpConnection;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
@@ -31,7 +32,6 @@ import io.vertx.core.http.WebSocketConnectOptions;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -63,7 +63,15 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
     }
 
     @Override
-    public void connect(HttpClient httpClient, int port, String host, String uri, Handler<Void> connectionHandler, Handler<Void> tracker) {
+    public void connect(
+        final ExecutionContext context,
+        HttpClient httpClient,
+        int port,
+        String host,
+        String uri,
+        Handler<Void> connectionHandler,
+        Handler<Void> tracker
+    ) {
         // Remove hop-by-hop headers.
         for (CharSequence header : WS_HOP_HEADERS) {
             wsProxyRequest.headers().remove(header);

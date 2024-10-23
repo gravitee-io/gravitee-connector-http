@@ -40,22 +40,29 @@ public class GrpcConnection extends HttpConnection<HttpResponse> {
         super(endpoint, request);
     }
 
+    protected RequestOptions prepareRequestOptions(
+        int port,
+        String host,
+        String uri,
+        final io.gravitee.gateway.api.http.HttpHeaders headers
+    ) {
+        return new RequestOptions()
+            .setHost(host)
+            .setMethod(HttpMethod.POST)
+            .setPort(port)
+            .setURI(uri)
+            // Ensure required gRPC headers
+            .putHeader(HttpHeaderNames.CONTENT_TYPE, MediaType.APPLICATION_GRPC)
+            .putHeader(HttpHeaderNames.TE, GRPC_TRAILERS_TE)
+            .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
+            .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects());
+    }
+
     @Override
-    protected Future<HttpClientRequest> prepareUpstreamRequest(HttpClient httpClient, int port, String host, String uri) {
+    protected Future<HttpClientRequest> prepareUpstreamRequest(HttpClient httpClient, RequestOptions requestOptions) {
         // Prepare HTTP request
         return httpClient
-            .request(
-                new RequestOptions()
-                    .setHost(host)
-                    .setMethod(HttpMethod.POST)
-                    .setPort(port)
-                    .setURI(uri)
-                    // Ensure required gRPC headers
-                    .putHeader(HttpHeaderNames.CONTENT_TYPE, MediaType.APPLICATION_GRPC)
-                    .putHeader(HttpHeaderNames.TE, GRPC_TRAILERS_TE)
-                    .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
-                    .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects())
-            )
+            .request(requestOptions)
             .map(httpClientRequest -> {
                 // Always set chunked mode for gRPC transport
                 return httpClientRequest.setChunked(true);

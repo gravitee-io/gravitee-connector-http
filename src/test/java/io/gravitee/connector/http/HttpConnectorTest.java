@@ -36,7 +36,9 @@ import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.proxy.ws.WebSocketProxyRequest;
+import io.gravitee.gateway.reactive.api.tracing.Tracer;
 import io.gravitee.node.api.configuration.Configuration;
+import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Future;
 import io.vertx.core.http.*;
@@ -95,6 +97,7 @@ public class HttpConnectorTest {
 
     @BeforeEach
     public void setUp() throws Exception {
+        lenient().when(executionContext.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
         httpClientsOptions.setConnectTimeout(0L);
         httpClientsOptions.setReadTimeout(0L);
         String target = "https://api.gravitee.io/echo";

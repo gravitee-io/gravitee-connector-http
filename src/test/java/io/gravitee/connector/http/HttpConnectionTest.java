@@ -26,9 +26,12 @@ import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.stub.DummyHttpClientRequest;
+import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.gateway.reactive.api.tracing.Tracer;
+import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
@@ -61,6 +64,9 @@ public class HttpConnectionTest {
     private HttpConnection<HttpResponse> cut;
 
     @Mock
+    private ExecutionContext context;
+
+    @Mock
     private HttpEndpoint endpoint;
 
     @Mock
@@ -91,6 +97,7 @@ public class HttpConnectionTest {
         httpClientOptions = new HttpClientOptions();
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
         when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
+        when(context.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
     }
 
     @Test
@@ -100,7 +107,7 @@ public class HttpConnectionTest {
         requestMetrics.setRequestId("request-id");
         when(request.metrics()).thenReturn(requestMetrics);
 
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
         // Rely on testing class ThrowingOnGoAwayHttpConnection to make the connection fail and trigger the exceptionHandler we want to test
         httpClientRequest.connection().goAway(204, 1, Buffer.buffer("💥 Connection error"));
 
@@ -109,7 +116,7 @@ public class HttpConnectionTest {
 
     @Test
     public void shouldWriteUpstreamHeaders() {
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 
@@ -121,7 +128,7 @@ public class HttpConnectionTest {
 
     @Test
     public void shouldWrite() {
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
         assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isNull();
         cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer());
         assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isEqualTo("0");
@@ -133,7 +140,7 @@ public class HttpConnectionTest {
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
         headers.set(ACCEPT_ENCODING, BROTLI);
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 
@@ -145,7 +152,7 @@ public class HttpConnectionTest {
         httpClientOptions.setUseCompression(false);
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 
@@ -158,7 +165,7 @@ public class HttpConnectionTest {
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
         headers.set(ACCEPT_ENCODING, BROTLI);
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 
@@ -171,7 +178,7 @@ public class HttpConnectionTest {
         httpClientOptions.setPropagateClientAcceptEncoding(false);
 
         headers.set(ACCEPT_ENCODING, BROTLI);
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
 

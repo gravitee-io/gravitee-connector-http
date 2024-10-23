@@ -17,6 +17,7 @@ package io.gravitee.connector.http;
 
 import io.gravitee.connector.api.Response;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.vertx.core.http.HttpClient;
 
@@ -33,6 +34,7 @@ public abstract class AbstractHttpConnection<E extends HttpEndpoint> extends io.
     }
 
     public abstract void connect(
+        final ExecutionContext context,
         HttpClient httpClient,
         int port,
         String host,

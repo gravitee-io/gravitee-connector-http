@@ -21,18 +21,26 @@ import io.gravitee.connector.api.Response;
 import io.gravitee.connector.api.response.ClientConnectionErrorResponse;
 import io.gravitee.connector.api.response.ClientConnectionTimeoutResponse;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
+import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.WriteStream;
+import io.gravitee.node.api.opentelemetry.Span;
+import io.gravitee.node.api.opentelemetry.http.ObservableHttpClientRequest;
+import io.gravitee.node.api.opentelemetry.http.ObservableHttpClientResponse;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.http.*;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.RequestOptions;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
@@ -84,7 +92,15 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     @Override
-    public void connect(HttpClient httpClient, int port, String host, String uri, Handler<Void> connectionHandler, Handler<Void> tracker) {
+    public void connect(
+        final ExecutionContext ctx,
+        HttpClient httpClient,
+        int port,
+        String host,
+        String uri,
+        Handler<Void> connectionHandler,
+        Handler<Void> tracker
+    ) {
         // Remove HOP-by-HOP headers
         for (CharSequence header : HOP_HEADERS) {
             request.headers().remove(header.toString());
@@ -95,48 +111,50 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             request.headers().remove(io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING);
         }
 
-        Future<HttpClientRequest> requestFuture = prepareUpstreamRequest(httpClient, port, host, uri);
-        requestFuture.onComplete(
-            new io.vertx.core.Handler<>() {
-                @Override
-                public void handle(AsyncResult<HttpClientRequest> event) {
-                    cancelHandler(tracker);
+        RequestOptions requestOptions = prepareRequestOptions(port, host, uri);
+        ObservableHttpClientRequest observableHttpClientRequest = new ObservableHttpClientRequest(requestOptions);
+        Span requestSpan = ctx.getTracer().startSpanFrom(observableHttpClientRequest);
+        Future<HttpClientRequest> requestFuture = prepareUpstreamRequest(httpClient, requestOptions);
+        requestFuture.onComplete(event -> {
+            cancelHandler(tracker);
 
-                    if (event.succeeded()) {
-                        httpClientRequest = event.result();
+            if (event.succeeded()) {
+                httpClientRequest = event.result();
+                observableHttpClientRequest.httpClientRequest(httpClientRequest);
 
-                        httpClientRequest.response(response -> {
-                            // Prepare upstream response
-                            handleUpstreamResponse(response, tracker);
-                        });
+                httpClientRequest.response(response -> {
+                    // Prepare upstream response
+                    handleUpstreamResponse(ctx, response, tracker, requestSpan);
+                });
 
-                        httpClientRequest
-                            .connection()
-                            .exceptionHandler(t -> {
-                                LOGGER.debug(
-                                    "Exception occurs during HTTP connection for api [{}] & request id [{}]: {}",
-                                    request.metrics().getApi(),
-                                    request.metrics().getRequestId(),
-                                    t.getMessage()
-                                );
-                                request.metrics().setMessage(t.getMessage());
-                            });
+                httpClientRequest
+                    .connection()
+                    .exceptionHandler(t -> {
+                        ctx.getTracer().endOnError(requestSpan, t);
+                        LOGGER.debug(
+                            "Exception occurs during HTTP connection for api [{}] & request id [{}]: {}",
+                            request.metrics().getApi(),
+                            request.metrics().getRequestId(),
+                            t.getMessage()
+                        );
+                        request.metrics().setMessage(t.getMessage());
+                    });
 
-                        httpClientRequest.exceptionHandler(exEvent -> {
-                            if (!isCanceled() && !isTransmitted()) {
-                                handleException(event.cause());
-                                tracker.handle(null);
-                            }
-                        });
-                        connectionHandler.handle(null);
-                    } else {
-                        connectionHandler.handle(null);
+                httpClientRequest.exceptionHandler(exEvent -> {
+                    ctx.getTracer().endOnError(requestSpan, event.cause());
+                    if (!isCanceled() && !isTransmitted()) {
                         handleException(event.cause());
                         tracker.handle(null);
                     }
-                }
+                });
+                connectionHandler.handle(null);
+            } else {
+                ctx.getTracer().endOnError(requestSpan, event.cause());
+                connectionHandler.handle(null);
+                handleException(event.cause());
+                tracker.handle(null);
             }
-        );
+        });
     }
 
     private void handleException(Throwable cause) {
@@ -163,27 +181,34 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
     }
 
-    protected Future<HttpClientRequest> prepareUpstreamRequest(HttpClient httpClient, int port, String host, String uri) {
+    protected RequestOptions prepareRequestOptions(int port, String host, String uri) {
+        return new RequestOptions()
+            .setHost(host)
+            .setMethod(HttpMethod.valueOf(request.method().name()))
+            .setPort(port)
+            .setURI(uri)
+            .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
+            .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects());
+    }
+
+    protected Future<HttpClientRequest> prepareUpstreamRequest(HttpClient httpClient, RequestOptions requestOptions) {
         // Prepare HTTP request
-        return httpClient.request(
-            new RequestOptions()
-                .setHost(host)
-                .setMethod(HttpMethod.valueOf(request.method().name()))
-                .setPort(port)
-                .setURI(uri)
-                .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
-                .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects())
-        );
+        return httpClient.request(requestOptions);
     }
 
     protected T createProxyResponse(HttpClientResponse clientResponse) {
         return (T) new HttpResponse(clientResponse);
     }
 
-    protected T handleUpstreamResponse(final AsyncResult<HttpClientResponse> clientResponseFuture, Handler<Void> tracker) {
+    protected T handleUpstreamResponse(
+        final ExecutionContext ctx,
+        final AsyncResult<HttpClientResponse> clientResponseFuture,
+        Handler<Void> tracker,
+        final Span requestSpan
+    ) {
         if (clientResponseFuture.succeeded()) {
             HttpClientResponse clientResponse = clientResponseFuture.result();
-
+            ctx.getTracer().endWithResponse(requestSpan, new ObservableHttpClientResponse(clientResponse));
             response = createProxyResponse(clientResponse);
 
             if (isSse(request)) {
@@ -225,6 +250,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             // And send it to the client
             sendToClient(response);
         } else {
+            ctx.getTracer().endWithResponseAndError(requestSpan, clientResponseFuture.result(), clientResponseFuture.cause());
             handleException(clientResponseFuture.cause());
             tracker.handle(null);
         }

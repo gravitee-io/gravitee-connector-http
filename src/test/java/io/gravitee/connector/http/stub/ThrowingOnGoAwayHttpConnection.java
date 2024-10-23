@@ -26,6 +26,7 @@ import io.vertx.core.http.HttpConnection;
 import io.vertx.core.net.SocketAddress;
 import java.security.cert.Certificate;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.security.cert.X509Certificate;
@@ -61,6 +62,11 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
 
     @Override
     public Future<Void> shutdown(long timeoutMs) {
+        return null;
+    }
+
+    @Override
+    public Future<Void> shutdown(final long timeout, final TimeUnit unit) {
         return null;
     }
 

@@ -1,3 +1,15 @@
+# [5.0.0-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.4-alpha.1...5.0.0-alpha.1) (2024-11-06)
+
+
+### Features
+
+* support new OpenTelemetry feature ([54672dd](https://github.com/gravitee-io/gravitee-connector-http/commit/54672ddff7a6fdcd20ee0138f45feafe5da54a44))
+
+
+### BREAKING CHANGES
+
+* Tracing plugin has been removed and is now embedded inside node framework
+
 ## [4.0.4-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4-alpha.1) (2024-10-23)
 
 

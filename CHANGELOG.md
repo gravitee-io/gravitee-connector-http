@@ -1,3 +1,10 @@
+## [4.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4) (2024-12-12)
+
+
+### Bug Fixes
+
+* avoid some NPE when connection has failed ([05a286c](https://github.com/gravitee-io/gravitee-connector-http/commit/05a286c3eba6f1fd66375464914b65bfd3118169))
+
 ## [4.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.2...4.0.3) (2024-06-03)
 
 

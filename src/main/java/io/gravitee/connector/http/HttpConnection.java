@@ -261,8 +261,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     @Override
     public Connection cancel() {
         this.canceled = true;
-        this.httpClientRequest.reset();
-        cancelHandler.handle(null);
+        if (this.httpClientRequest != null) {
+            this.httpClientRequest.reset();
+        }
+        if (cancelHandler != null) {
+            cancelHandler.handle(null);
+        }
         if (response != null) {
             response.bodyHandler(null);
         }
@@ -290,7 +294,9 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     private void handleConnectTimeout(Throwable throwable) {
-        this.timeoutHandler.handle(throwable);
+        if (this.timeoutHandler != null) {
+            this.timeoutHandler.handle(throwable);
+        }
     }
 
     private Handler<Throwable> timeoutHandler() {
@@ -326,7 +332,13 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     @Override
     public WriteStream<Buffer> drainHandler(Handler<Void> drainHandler) {
-        httpClientRequest.drainHandler(aVoid -> drainHandler.handle(null));
+        if (this.httpClientRequest != null) {
+            httpClientRequest.drainHandler(aVoid -> {
+                if (this.timeoutHandler != null) {
+                    drainHandler.handle(null);
+                }
+            });
+        }
         return this;
     }
 
@@ -384,11 +396,13 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     @Override
     public Connection writeCustomFrame(HttpFrame frame) {
-        httpClientRequest.writeCustomFrame(
-            frame.type(),
-            frame.flags(),
-            io.vertx.core.buffer.Buffer.buffer(frame.payload().getNativeBuffer())
-        );
+        if (httpClientRequest != null) {
+            httpClientRequest.writeCustomFrame(
+                frame.type(),
+                frame.flags(),
+                io.vertx.core.buffer.Buffer.buffer(frame.payload().getNativeBuffer())
+            );
+        }
 
         return this;
     }

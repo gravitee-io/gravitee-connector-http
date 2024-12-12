@@ -42,6 +42,8 @@ public abstract class AbstractHttpConnection<E extends HttpEndpoint> extends io.
     );
 
     protected void sendToClient(Response response) {
-        this.responseHandler.handle(response);
+        if (this.responseHandler != null) {
+            this.responseHandler.handle(response);
+        }
     }
 }

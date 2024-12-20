@@ -1,3 +1,10 @@
+# [5.0.0-alpha.2](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0-alpha.1...5.0.0-alpha.2) (2024-12-20)
+
+
+### Bug Fixes
+
+* avoid some NPE when connection has failed ([b652a34](https://github.com/gravitee-io/gravitee-connector-http/commit/b652a34fed9f710a7262ff85f212793de79dff2c))
+
 # [5.0.0-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.4-alpha.1...5.0.0-alpha.1) (2024-11-06)
 
 

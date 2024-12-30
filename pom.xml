@@ -34,7 +34,7 @@
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
-        <gravitee-apim.version>4.6.0-SNAPSHOT</gravitee-apim.version>
+        <gravitee-apim.version>4.6.0-alpha.3</gravitee-apim.version>
 
         <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
         <!-- Property used by the publication job in CI-->

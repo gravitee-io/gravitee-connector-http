@@ -1,3 +1,10 @@
+# [5.0.0-alpha.3](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0-alpha.2...5.0.0-alpha.3) (2024-12-30)
+
+
+### Bug Fixes
+
+* **deps:** use apim latest alpha ([4e4b16f](https://github.com/gravitee-io/gravitee-connector-http/commit/4e4b16f1d59495643dfda3ff0b75667d8ac2721b))
+
 # [5.0.0-alpha.2](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0-alpha.1...5.0.0-alpha.2) (2024-12-20)
 
 

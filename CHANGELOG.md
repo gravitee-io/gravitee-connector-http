@@ -1,3 +1,36 @@
+# [5.0.0-alpha.3](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0-alpha.2...5.0.0-alpha.3) (2024-12-30)
+
+
+### Bug Fixes
+
+* **deps:** use apim latest alpha ([4e4b16f](https://github.com/gravitee-io/gravitee-connector-http/commit/4e4b16f1d59495643dfda3ff0b75667d8ac2721b))
+
+# [5.0.0-alpha.2](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0-alpha.1...5.0.0-alpha.2) (2024-12-20)
+
+
+### Bug Fixes
+
+* avoid some NPE when connection has failed ([b652a34](https://github.com/gravitee-io/gravitee-connector-http/commit/b652a34fed9f710a7262ff85f212793de79dff2c))
+
+# [5.0.0-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.4-alpha.1...5.0.0-alpha.1) (2024-11-06)
+
+
+### Features
+
+* support new OpenTelemetry feature ([54672dd](https://github.com/gravitee-io/gravitee-connector-http/commit/54672ddff7a6fdcd20ee0138f45feafe5da54a44))
+
+
+### BREAKING CHANGES
+
+* Tracing plugin has been removed and is now embedded inside node framework
+
+## [4.0.4-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4-alpha.1) (2024-10-23)
+
+
+### Bug Fixes
+
+* revert "reapply ByteBuf optimization" ([633abc5](https://github.com/gravitee-io/gravitee-connector-http/commit/633abc55eb039de9ea0082a3a6a6861b6e6570ed))
+
 ## [4.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4) (2024-12-12)
 
 

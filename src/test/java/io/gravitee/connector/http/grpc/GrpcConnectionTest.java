@@ -23,9 +23,12 @@ import static org.mockito.Mockito.when;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.stub.DummyHttpClientRequest;
+import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.gateway.reactive.api.tracing.Tracer;
+import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
@@ -50,6 +53,9 @@ public class GrpcConnectionTest {
     protected static final String BROTLI = "br";
 
     private GrpcConnection cut;
+
+    @Mock
+    private ExecutionContext executionContext;
 
     @Mock
     private HttpEndpoint endpoint;
@@ -86,11 +92,21 @@ public class GrpcConnectionTest {
                 httpClientRequest = spy(new DummyHttpClientRequest(options));
                 return Future.succeededFuture(httpClientRequest);
             });
+
+        when(executionContext.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
     }
 
     @Test
     public void should_write_upstream_headers() {
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(
+            executionContext,
+            client,
+            getAvailablePort(),
+            "host",
+            "/",
+            unused -> {},
+            result -> new AtomicInteger(1).decrementAndGet()
+        );
 
         cut.writeUpstreamHeaders();
 
@@ -102,7 +118,15 @@ public class GrpcConnectionTest {
 
     @Test
     public void should_prevent_duplicated_headers() {
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(
+            executionContext,
+            client,
+            getAvailablePort(),
+            "host",
+            "/",
+            unused -> {},
+            result -> new AtomicInteger(1).decrementAndGet()
+        );
 
         headers.add(HttpHeaderNames.CONTENT_TYPE, "application/grpc");
 
@@ -113,7 +137,15 @@ public class GrpcConnectionTest {
 
     @Test
     public void should_remove_host_header() {
-        cut.connect(client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+        cut.connect(
+            executionContext,
+            client,
+            getAvailablePort(),
+            "host",
+            "/",
+            unused -> {},
+            result -> new AtomicInteger(1).decrementAndGet()
+        );
 
         cut.writeUpstreamHeaders();
 

@@ -39,7 +39,13 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpVersion;
-import io.vertx.core.net.*;
+import io.vertx.core.net.JksOptions;
+import io.vertx.core.net.OpenSSLEngineOptions;
+import io.vertx.core.net.PemKeyCertOptions;
+import io.vertx.core.net.PemTrustOptions;
+import io.vertx.core.net.PfxOptions;
+import io.vertx.core.net.ProxyOptions;
+import io.vertx.core.net.ProxyType;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -133,6 +139,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
             // Connect to the upstream
             connection.connect(
+                context,
                 client,
                 port,
                 url.getHost(),

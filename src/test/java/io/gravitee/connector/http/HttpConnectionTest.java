@@ -19,7 +19,6 @@ import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.gravitee.common.http.HttpMethod;
@@ -91,6 +90,7 @@ public class HttpConnectionTest {
         httpClientOptions = new HttpClientOptions();
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
         when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
+        when(request.uri()).thenReturn("http://host.fr");
     }
 
     @Test

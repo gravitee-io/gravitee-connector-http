@@ -36,11 +36,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientRequest;
-import io.vertx.core.http.HttpClientResponse;
-import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.RequestOptions;
+import io.vertx.core.http.*;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
@@ -187,6 +183,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             .setMethod(HttpMethod.valueOf(request.method().name()))
             .setPort(port)
             .setURI(uri)
+            .setSsl(request.uri().split(":")[0].equalsIgnoreCase("https"))
             .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
             .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects());
     }

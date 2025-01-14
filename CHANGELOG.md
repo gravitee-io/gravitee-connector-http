@@ -1,3 +1,10 @@
+## [4.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.4...4.0.5) (2025-01-14)
+
+
+### Bug Fixes
+
+* set SSL for https requests only ([caf22f2](https://github.com/gravitee-io/gravitee-connector-http/commit/caf22f2a7480aba7350f924591109e05a15378d3))
+
 ## [4.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.3...4.0.4) (2024-12-12)
 
 

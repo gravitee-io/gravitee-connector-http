@@ -171,6 +171,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 .setMethod(HttpMethod.valueOf(request.method().name()))
                 .setPort(port)
                 .setURI(uri)
+                .setSsl(request.uri().split(":")[0].equalsIgnoreCase("https"))
                 .setTimeout(endpoint.getHttpClientOptions().getReadTimeout())
                 .setFollowRedirects(endpoint.getHttpClientOptions().isFollowRedirects())
         );

@@ -1,3 +1,10 @@
+## [5.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.1...5.0.2) (2025-01-22)
+
+
+### Bug Fixes
+
+* null check for drainHandler ([7323ae9](https://github.com/gravitee-io/gravitee-connector-http/commit/7323ae9d0035f08d3ad2f06af60348400bad5f69))
+
 ## [5.0.1](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.0...5.0.1) (2025-01-14)
 
 

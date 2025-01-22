@@ -331,7 +331,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     public WriteStream<Buffer> drainHandler(Handler<Void> drainHandler) {
         if (this.httpClientRequest != null) {
             httpClientRequest.drainHandler(aVoid -> {
-                if (this.timeoutHandler != null) {
+                if (drainHandler != null) {
                     drainHandler.handle(null);
                 }
             });

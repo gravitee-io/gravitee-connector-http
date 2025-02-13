@@ -343,17 +343,11 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     @Override
     protected void doStop() throws Exception {
         LOGGER.debug(
-            "Graceful shutdown of HTTP Client for endpoint[{}] target[{}] requests[{}]",
+            "Shutdown of HTTP Client for endpoint[{}] target[{}] requests[{}]",
             endpoint.name(),
             endpoint.target(),
             requestTracker.get()
         );
-
-        long shouldEndAt = System.currentTimeMillis() + endpoint.getHttpClientOptions().getReadTimeout();
-
-        while (requestTracker.get() > 0 && System.currentTimeMillis() <= shouldEndAt) {
-            TimeUnit.MILLISECONDS.sleep(100);
-        }
 
         if (requestTracker.get() > 0) {
             LOGGER.warn("Cancel requests[{}] for endpoint[{}] target[{}]", requestTracker.get(), endpoint.name(), endpoint.target());

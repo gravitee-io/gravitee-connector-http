@@ -1,3 +1,10 @@
+## [5.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.2...5.0.3) (2025-02-14)
+
+
+### Bug Fixes
+
+* remove graceful shutdown on stop http connector ([4e564bb](https://github.com/gravitee-io/gravitee-connector-http/commit/4e564bb68f92cb3328a3d176bd553f9c4e054035))
+
 ## [5.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.1...5.0.2) (2025-01-22)
 
 

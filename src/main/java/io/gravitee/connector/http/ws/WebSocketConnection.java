@@ -80,7 +80,7 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
 
         httpClient.webSocket(options, event -> {
             if (event.succeeded()) {
-              event.result().pause();
+                event.result().pause();
                 // The client -> gateway connection must be upgraded now that the one between gateway -> upstream
                 // has been accepted
                 wsProxyRequest

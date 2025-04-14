@@ -124,7 +124,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
                         httpClientRequest.exceptionHandler(exEvent -> {
                             if (!isCanceled() && !isTransmitted()) {
-                                handleException(event.cause());
+                                handleException(exEvent.getCause());
                                 tracker.handle(null);
                             }
                         });

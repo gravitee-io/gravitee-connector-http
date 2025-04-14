@@ -1,3 +1,10 @@
+## [4.0.8](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.7...4.0.8) (2025-04-14)
+
+
+### Bug Fixes
+
+* changed reference 'event' to 'exEvent' ([d77bd67](https://github.com/gravitee-io/gravitee-connector-http/commit/d77bd670446f311516f37f2e4c1a6615e338a8e3))
+
 ## [4.0.7](https://github.com/gravitee-io/gravitee-connector-http/compare/4.0.6...4.0.7) (2025-02-14)
 
 

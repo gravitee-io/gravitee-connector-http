@@ -215,7 +215,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     throwable.getMessage()
                 );
 
-                response.endHandler().handle(null);
+                if (response.endHandler() != null) {
+                    response.endHandler().handle(null);
+                }
+
                 tracker.handle(null);
             });
 

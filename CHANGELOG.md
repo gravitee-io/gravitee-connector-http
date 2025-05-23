@@ -1,3 +1,10 @@
+## [5.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.4...5.0.5) (2025-05-23)
+
+
+### Bug Fixes
+
+* check if response endHandler is not null before invoking it ([4f2d060](https://github.com/gravitee-io/gravitee-connector-http/commit/4f2d0607bd5aa2ae1fc634a2c923fa0fb9c24cc2))
+
 ## [5.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.3...5.0.4) (2025-04-14)
 
 

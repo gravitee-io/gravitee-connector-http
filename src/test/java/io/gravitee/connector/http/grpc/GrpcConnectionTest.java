@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.stub.DummyHttpClientRequest;
@@ -86,13 +87,21 @@ public class GrpcConnectionTest {
 
         httpClientOptions = new HttpClientOptions();
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
+        when(request.method()).thenReturn(HttpMethod.POST);
+        when(request.uri()).thenReturn("/");
         when(client.request(any(RequestOptions.class)))
             .thenAnswer(invocation -> {
                 RequestOptions options = invocation.getArgument(0);
+
+                java.lang.reflect.Field headersField = RequestOptions.class.getDeclaredField("headers");
+                headersField.setAccessible(true);
+                if (headersField.get(options) == null) {
+                    headersField.set(options, io.vertx.core.MultiMap.caseInsensitiveMultiMap());
+                }
+
                 httpClientRequest = spy(new DummyHttpClientRequest(options));
                 return Future.succeededFuture(httpClientRequest);
             });
-
         when(executionContext.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
     }
 

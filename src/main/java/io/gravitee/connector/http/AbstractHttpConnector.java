@@ -199,7 +199,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         options.setTryUsePerMessageWebSocketCompression(endpoint.getHttpClientOptions().isUseCompression());
         options.setWebSocketCompressionAllowClientNoContext(endpoint.getHttpClientOptions().isUseCompression());
         options.setWebSocketCompressionRequestServerNoContext(endpoint.getHttpClientOptions().isUseCompression());
-
+        options.setMaxHeaderSize(endpoint.getHttpClientOptions().getMaxHeaderSize());
+        options.setMaxChunkSize(endpoint.getHttpClientOptions().getMaxChunkSize());
         if (endpoint.getHttpClientOptions().getVersion() == ProtocolVersion.HTTP_2) {
             options.setProtocolVersion(HttpVersion.HTTP_2);
             options.setHttp2ClearTextUpgrade(endpoint.getHttpClientOptions().isClearTextUpgrade());

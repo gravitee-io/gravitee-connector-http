@@ -41,10 +41,9 @@ public class AbstractHttpConnectorTest {
     @Test
     public void createHttpClientOptions_DoesntEnableSSLForWsProtocol() throws Exception {
         HttpEndpoint endpoint = new HttpEndpoint(null, "Endpoint", "ws://localhost:8080/api");
-
-        AbstractHttpConnector<HttpEndpoint> connector = new TestHttpConnector(endpoint, mock(Configuration.class));
+        Configuration configuration = mock(Configuration.class);
+        AbstractHttpConnector<HttpEndpoint> connector = new TestHttpConnector(endpoint, configuration);
         HttpClientOptions result = connector.createHttpClientOptions();
-
         assertThat(result.isSsl()).isFalse();
     }
 

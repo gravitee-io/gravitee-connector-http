@@ -1,3 +1,10 @@
+## [5.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.5...5.0.6) (2025-10-07)
+
+
+### Bug Fixes
+
+* add configurable response.maxHeaderSize to handle large server headers ([3e1802c](https://github.com/gravitee-io/gravitee-connector-http/commit/3e1802cd12cd59615148a287d29b697a033bd1ae))
+
 ## [5.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.4...5.0.5) (2025-05-23)
 
 

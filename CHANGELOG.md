@@ -1,3 +1,10 @@
+## [5.0.7](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.6...5.0.7) (2025-11-07)
+
+
+### Bug Fixes
+
+* traceparent header not send to backend when tracing activated for V2 APIs ([830248b](https://github.com/gravitee-io/gravitee-connector-http/commit/830248b7d22a7d4617be9cd054f7ef54d4634bc0))
+
 ## [5.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.5...5.0.6) (2025-10-07)
 
 

@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import io.gravitee.common.component.Lifecycle;
 import io.gravitee.common.http.HttpMethod;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
@@ -30,8 +31,12 @@ import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.reactive.api.tracing.Tracer;
+import io.gravitee.node.api.opentelemetry.Span;
+import io.gravitee.node.api.opentelemetry.http.ObservableHttpClientRequest;
+import io.gravitee.node.opentelemetry.tracer.OpenTelemetryTracer;
 import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
@@ -39,7 +44,10 @@ import io.vertx.core.http.HttpClientRequest;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayNameGeneration;
+import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -51,6 +59,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * @author GraviteeSource Team
  */
 @ExtendWith(MockitoExtension.class)
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 public class HttpConnectionTest {
 
     public static final String FIRST_HEADER = "First-Header";
@@ -58,6 +67,8 @@ public class HttpConnectionTest {
     public static final String FIRST_HEADER_VALUE_1 = "first-header-value-1";
     public static final String FIRST_HEADER_VALUE_2 = "first-header-value-2";
     public static final String SECOND_HEADER_VALUE = "second-header-value";
+    public static final String TRACEPARENT_HEADER = "traceparent";
+    public static final String TRACEPARENT_HEADER_VALUE = "traceparent-value";
     protected static final String BROTLI = "br";
 
     private HttpConnection<HttpResponse> cut;
@@ -101,7 +112,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldSetMetricsMessageWithVertxConnectionException() {
+    public void should_set_metrics_message_with_vertx_connection_exception() {
         final Metrics requestMetrics = Metrics.on(System.currentTimeMillis()).build();
         requestMetrics.setApi("api-id");
         requestMetrics.setRequestId("request-id");
@@ -115,7 +126,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldWriteUpstreamHeaders() {
+    public void should_write_upstream_headers() {
         cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         cut.writeUpstreamHeaders();
@@ -127,7 +138,23 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldWrite() {
+    public void should_write_upstream_headers_with_tracing_headers() {
+        when(context.getTracer()).thenReturn(new Tracer(null, new DummyTracer()));
+
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(headers.contains(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING)).isFalse();
+        assertThat(httpClientRequest.headers().getAll(SECOND_HEADER)).hasSize(1).containsExactly(SECOND_HEADER_VALUE);
+
+        assertThat(httpClientRequest.headers().getAll(FIRST_HEADER)).hasSize(2).containsExactly(FIRST_HEADER_VALUE_1, FIRST_HEADER_VALUE_2);
+
+        assertThat(httpClientRequest.headers().getAll(TRACEPARENT_HEADER)).hasSize(1).containsExactly(TRACEPARENT_HEADER_VALUE);
+    }
+
+    @Test
+    public void should_write() {
         cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
         assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isNull();
         cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer());
@@ -135,7 +162,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldPropagateClientAcceptEncodingHeader() {
+    public void should_propagate_client_accept_encoding_header() {
         httpClientOptions.setUseCompression(false);
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
@@ -148,7 +175,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenNoHeader() {
+    public void should_not_propagate_client_accept_encoding_header_when_no_header() {
         httpClientOptions.setUseCompression(false);
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
@@ -160,7 +187,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenCompressionIsEnabled() {
+    public void should_not_propagate_client_accept_encoding_header_when_compression_is_enabled() {
         httpClientOptions.setUseCompression(true);
         httpClientOptions.setPropagateClientAcceptEncoding(true);
 
@@ -173,7 +200,7 @@ public class HttpConnectionTest {
     }
 
     @Test
-    public void shouldNotPropagateClientAcceptEncodingHeaderWhenPropagateIsDisabled() {
+    public void should_not_propagate_client_accept_encoding_header_when_propagate_is_disabled() {
         httpClientOptions.setUseCompression(false);
         httpClientOptions.setPropagateClientAcceptEncoding(false);
 
@@ -190,6 +217,67 @@ public class HttpConnectionTest {
             return socket.getLocalPort();
         } catch (IOException e) {
             throw new AssertionError(e);
+        }
+    }
+
+    public class DummyTracer implements io.gravitee.node.api.opentelemetry.Tracer {
+
+        @Override
+        public <R> Span startRootSpanFrom(Context context, R r) {
+            return null;
+        }
+
+        @Override
+        public <R> Span startSpanFrom(Context context, R r) {
+            if (r instanceof ObservableHttpClientRequest observableHttpClientRequest) {
+                observableHttpClientRequest.requestOptions().addHeader(TRACEPARENT_HEADER, TRACEPARENT_HEADER_VALUE);
+            }
+
+            return null;
+        }
+
+        @Override
+        public <R> Span startSpanWithParentFrom(Context context, Span span, R r) {
+            return null;
+        }
+
+        @Override
+        public void end(Context context, Span span) {}
+
+        @Override
+        public void endOnError(Context context, Span span, Throwable throwable) {}
+
+        @Override
+        public void endOnError(Context context, Span span, String s) {}
+
+        @Override
+        public <R> void endWithResponse(Context context, Span span, R r) {}
+
+        @Override
+        public <R> void endWithResponseAndError(Context context, Span span, R r, Throwable throwable) {}
+
+        @Override
+        public <R> void endWithResponseAndError(Context context, Span span, R r, String s) {}
+
+        @Override
+        public void injectSpanContext(Context context, BiConsumer<String, String> biConsumer) {}
+
+        @Override
+        public void injectSpanContext(Context context, Span span, BiConsumer<String, String> biConsumer) {}
+
+        @Override
+        public Lifecycle.State lifecycleState() {
+            return null;
+        }
+
+        @Override
+        public io.gravitee.node.api.opentelemetry.Tracer start() throws Exception {
+            return null;
+        }
+
+        @Override
+        public io.gravitee.node.api.opentelemetry.Tracer stop() throws Exception {
+            return null;
         }
     }
 }

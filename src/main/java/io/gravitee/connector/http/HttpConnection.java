@@ -36,7 +36,9 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.MultiMap;
 import io.vertx.core.http.*;
+import io.vertx.core.http.impl.headers.HeadersMultiMap;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
@@ -108,10 +110,22 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
 
         RequestOptions requestOptions = prepareRequestOptions(port, host, uri);
-        ObservableHttpClientRequest observableHttpClientRequest = new ObservableHttpClientRequest(requestOptions);
-        Span requestSpan = ctx.getTracer().startSpanFrom(observableHttpClientRequest);
         Future<HttpClientRequest> requestFuture = prepareUpstreamRequest(httpClient, requestOptions);
         requestFuture.onComplete(event -> {
+            //Copy the request options to initialize the observable http client request headers not null
+            var observableRequestOptions = new RequestOptions(requestOptions);
+            observableRequestOptions.setHeaders(new HeadersMultiMap());
+            ObservableHttpClientRequest observableHttpClientRequest = new ObservableHttpClientRequest(observableRequestOptions);
+
+            Span requestSpan = ctx.getTracer().startSpanFrom(observableHttpClientRequest);
+
+            //Copy the headers from the observable request into the proxy request to ensure that the traceparent header
+            //is set since requestOptions is not used here to set the headers but the proxy request is
+            observableHttpClientRequest
+                .headers()
+                .forEach(header -> {
+                    request.headers().add(header.getKey(), header.getValue());
+                });
             cancelHandler(tracker);
 
             if (event.succeeded()) {

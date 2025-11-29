@@ -36,7 +36,7 @@
     <properties>
         <gravitee-apim.version>4.6.7</gravitee-apim.version>
 
-        <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
+        <maven-assembly-plugin.version>3.8.0</maven-assembly-plugin.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>
     </properties>

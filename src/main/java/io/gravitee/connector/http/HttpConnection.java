@@ -58,6 +58,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
 
     private static final Set<CharSequence> HOP_HEADERS;
+    private static final String SERVER_NULL_PATTERN = " for server null";
 
     static {
         Set<CharSequence> hopHeaders = new HashSet<>();
@@ -83,6 +84,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private boolean transmitted = false;
     private boolean headersWritten = false;
     private boolean content = false;
+    private String targetServer;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -99,6 +101,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         Handler<Void> connectionHandler,
         Handler<Void> tracker
     ) {
+        this.targetServer = host + ":" + port;
         // Remove HOP-by-HOP headers
         for (CharSequence header : HOP_HEADERS) {
             request.headers().remove(header.toString());
@@ -169,7 +172,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private void handleException(Throwable cause) {
         if (!isCanceled() && !isTransmitted()) {
-            request.metrics().setMessage(cause.getMessage());
+            String errorMessage = rewriteServerNull(cause.getMessage());
+            request.metrics().setMessage(errorMessage);
 
             if (
                 timeoutHandler() != null &&
@@ -189,6 +193,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 sendToClient(clientResponse);
             }
         }
+    }
+
+    private String rewriteServerNull(String message) {
+        return (message != null && message.contains(SERVER_NULL_PATTERN) && targetServer != null)
+            ? message.replace(SERVER_NULL_PATTERN, " for server " + targetServer)
+            : message;
     }
 
     protected RequestOptions prepareRequestOptions(int port, String host, String uri) {

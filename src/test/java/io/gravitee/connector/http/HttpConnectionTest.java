@@ -212,6 +212,32 @@ public class HttpConnectionTest {
         assertThat(httpClientRequest.headers().getAll(ACCEPT_ENCODING)).hasSize(0);
     }
 
+    @Test
+    public void should_rewrite_server_null_in_timeout_error_message() {
+        final Metrics requestMetrics = Metrics.on(System.currentTimeMillis()).build();
+        requestMetrics.setApi("api-id");
+        requestMetrics.setRequestId("request-id");
+        when(request.metrics()).thenReturn(requestMetrics);
+
+        int port = getAvailablePort();
+        cut.connect(context, client, port, "example.com", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        // Simulate timeout exception with "for server null" in the message
+        when(client.request(any()))
+            .thenReturn(
+                Future.failedFuture(
+                    new java.util.concurrent.TimeoutException(
+                        "The timeout period of 10000ms has been exceeded while executing GET /late for server null"
+                    )
+                )
+            );
+
+        cut.connect(context, client, port, "example.com", "/late", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        assertThat(requestMetrics.getMessage())
+            .isEqualTo("The timeout period of 10000ms has been exceeded while executing GET /late for server example.com:" + port);
+    }
+
     private int getAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();

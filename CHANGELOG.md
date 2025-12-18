@@ -1,3 +1,10 @@
+## [5.0.8](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.7...5.0.8) (2025-12-18)
+
+
+### Bug Fixes
+
+* **v2:** handle server null message with actual endpoint ([431c006](https://github.com/gravitee-io/gravitee-connector-http/commit/431c006eb6c446fc9b86bdf85b7b30770ac771d6))
+
 ## [5.0.7](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.6...5.0.7) (2025-11-07)
 
 

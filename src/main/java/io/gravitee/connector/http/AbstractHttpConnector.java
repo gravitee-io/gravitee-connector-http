@@ -15,7 +15,6 @@
  */
 package io.gravitee.connector.http;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.connector.api.AbstractConnector;
 import io.gravitee.connector.api.Connection;
@@ -30,8 +29,10 @@ import io.gravitee.connector.http.endpoint.pem.PEMKeyStore;
 import io.gravitee.connector.http.endpoint.pem.PEMTrustStore;
 import io.gravitee.connector.http.endpoint.pkcs12.PKCS12KeyStore;
 import io.gravitee.connector.http.endpoint.pkcs12.PKCS12TrustStore;
+import io.gravitee.connector.http.ws.WebSocketConnection;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
+import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
 import io.gravitee.node.vertx.proxy.VertxProxyOptionsUtils;
@@ -39,6 +40,10 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
 import io.vertx.core.http.HttpVersion;
+import io.vertx.core.http.PoolOptions;
+import io.vertx.core.http.WebSocketClient;
+import io.vertx.core.http.WebSocketClientOptions;
+import io.vertx.core.net.ClientOptionsBase;
 import io.vertx.core.net.JksOptions;
 import io.vertx.core.net.OpenSSLEngineOptions;
 import io.vertx.core.net.PemKeyCertOptions;
@@ -54,7 +59,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.slf4j.Logger;
@@ -80,7 +84,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     protected final E endpoint;
     private final Configuration configuration;
 
-    private HttpClientOptions options;
+    private HttpClientOptions httpClientOptions;
+    private WebSocketClientOptions webSocketOptions;
+    private PoolOptions poolOptions;
 
     /**
      * Dummy {@link URLStreamHandler} implementation to avoid unknown protocol issue with default implementation
@@ -100,6 +106,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     protected final Map<Thread, HttpClient> httpClients = new ConcurrentHashMap<>();
 
+    protected final Map<Thread, WebSocketClient> webSocketClients = new ConcurrentHashMap<>();
+
     private final AtomicInteger requestTracker = new AtomicInteger(0);
 
     @Override
@@ -118,7 +126,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
             final String host = (port == UNSECURE_PORT || port == SECURE_PORT) ? url.getHost() : url.getHost() + ':' + port;
 
-            request.headers().set(HttpHeaders.HOST, host);
+            request.headers().set(HttpHeaderNames.HOST, host);
 
             // Enhance proxy request with endpoint configuration
             if (endpoint.getHeaders() != null && !endpoint.getHeaders().isEmpty()) {
@@ -132,21 +140,36 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             // Create the connector to the upstream
             final AbstractHttpConnection<HttpEndpoint> connection = create(request);
 
-            // Grab an instance of the HTTP client
-            final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), createHttpClient());
+            if (connection instanceof WebSocketConnection) {
+                final WebSocketClient webSocketClient = webSocketClients.computeIfAbsent(Thread.currentThread(), createWebSocketClient());
+                requestTracker.incrementAndGet();
 
-            requestTracker.incrementAndGet();
+                // Connect to the upstream
+                connection.connect(
+                    context,
+                    webSocketClient,
+                    port,
+                    url.getHost(),
+                    (url.getQuery() == null) ? url.getPath() : url.getPath() + URI_QUERY_DELIMITER_CHAR + url.getQuery(),
+                    connect -> connectionHandler.handle(connection),
+                    result -> requestTracker.decrementAndGet()
+                );
+            } else {
+                // Grab an instance of the HTTP client
+                final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), createHttpClient());
+                requestTracker.incrementAndGet();
 
-            // Connect to the upstream
-            connection.connect(
-                context,
-                client,
-                port,
-                url.getHost(),
-                (url.getQuery() == null) ? url.getPath() : url.getPath() + URI_QUERY_DELIMITER_CHAR + url.getQuery(),
-                connect -> connectionHandler.handle(connection),
-                result -> requestTracker.decrementAndGet()
-            );
+                // Connect to the upstream
+                connection.connect(
+                    context,
+                    client,
+                    port,
+                    url.getHost(),
+                    (url.getQuery() == null) ? url.getPath() : url.getPath() + URI_QUERY_DELIMITER_CHAR + url.getQuery(),
+                    connect -> connectionHandler.handle(connection),
+                    result -> requestTracker.decrementAndGet()
+                );
+            }
         } catch (MalformedURLException ex) {
             throw new IllegalArgumentException();
         }
@@ -156,8 +179,28 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     @Override
     protected void doStart() throws Exception {
-        this.options = this.createHttpClientOptions();
+        this.httpClientOptions = this.createHttpClientOptions();
+        this.poolOptions = this.createPoolOptions();
+        this.webSocketOptions = this.createWebSocketOptions();
         printHttpClientConfiguration();
+    }
+
+    /**
+     * Creates PoolOptions for Vert.x 5 HTTP client.
+     * In Vert.x 5, pool configuration moved from HttpClientOptions to PoolOptions.
+     */
+    protected PoolOptions createPoolOptions() {
+        PoolOptions poolOptions = new PoolOptions();
+        int maxConnections = endpoint.getHttpClientOptions().getMaxConcurrentConnections();
+
+        // Set pool sizes based on protocol version
+        if (endpoint.getHttpClientOptions().getVersion() == ProtocolVersion.HTTP_2) {
+            poolOptions.setHttp2MaxSize(maxConnections);
+        } else {
+            poolOptions.setHttp1MaxSize(maxConnections);
+        }
+
+        return poolOptions;
     }
 
     private String appendQueryParameters(String uri, MultiValueMap<String, String> parameters) {
@@ -187,25 +230,48 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
     protected HttpClientOptions createHttpClientOptions() throws EndpointException {
         HttpClientOptions options = new HttpClientOptions();
+        configureCommonOptions(options);
 
         options.setPipelining(endpoint.getHttpClientOptions().isPipelining());
         options.setKeepAlive(endpoint.getHttpClientOptions().isKeepAlive());
-        options.setIdleTimeout((int) (endpoint.getHttpClientOptions().getIdleTimeout() / 1000));
         options.setKeepAliveTimeout((int) (endpoint.getHttpClientOptions().getKeepAliveTimeout() / 1000));
-        options.setConnectTimeout((int) endpoint.getHttpClientOptions().getConnectTimeout());
-        options.setMaxPoolSize(endpoint.getHttpClientOptions().getMaxConcurrentConnections());
-        options.setTryUseCompression(endpoint.getHttpClientOptions().isUseCompression());
-        options.setTryUsePerFrameWebSocketCompression(endpoint.getHttpClientOptions().isUseCompression());
-        options.setTryUsePerMessageWebSocketCompression(endpoint.getHttpClientOptions().isUseCompression());
-        options.setWebSocketCompressionAllowClientNoContext(endpoint.getHttpClientOptions().isUseCompression());
-        options.setWebSocketCompressionRequestServerNoContext(endpoint.getHttpClientOptions().isUseCompression());
+        // In Vert.x 5, setTryUseCompression was renamed to setDecompressionSupported
+        options.setDecompressionSupported(endpoint.getHttpClientOptions().isUseCompression());
         options.setMaxHeaderSize(endpoint.getHttpClientOptions().getMaxHeaderSize());
         options.setMaxChunkSize(endpoint.getHttpClientOptions().getMaxChunkSize());
         if (endpoint.getHttpClientOptions().getVersion() == ProtocolVersion.HTTP_2) {
             options.setProtocolVersion(HttpVersion.HTTP_2);
             options.setHttp2ClearTextUpgrade(endpoint.getHttpClientOptions().isClearTextUpgrade());
-            options.setHttp2MaxPoolSize(endpoint.getHttpClientOptions().getMaxConcurrentConnections());
         }
+
+        // setVerifyHost is not on ClientOptionsBase, set it on the concrete type
+        HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
+        if (options.isSsl() && sslOptions != null) {
+            options.setVerifyHost(sslOptions.isHostnameVerifier());
+        }
+
+        return options;
+    }
+
+    private WebSocketClientOptions createWebSocketOptions() throws EndpointException {
+        WebSocketClientOptions options = new WebSocketClientOptions();
+        configureCommonOptions(options);
+
+        int maxConnections = endpoint.getHttpClientOptions().getMaxConcurrentConnections();
+        options.setMaxConnections(maxConnections);
+
+        // setVerifyHost is not on ClientOptionsBase, set it on the concrete type
+        HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
+        if (options.isSsl() && sslOptions != null) {
+            options.setVerifyHost(sslOptions.isHostnameVerifier());
+        }
+
+        return options;
+    }
+
+    private void configureCommonOptions(ClientOptionsBase options) throws EndpointException {
+        options.setIdleTimeout((int) (endpoint.getHttpClientOptions().getIdleTimeout() / 1000));
+        options.setConnectTimeout((int) endpoint.getHttpClientOptions().getConnectTimeout());
 
         URL target;
         try {
@@ -236,14 +302,15 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
 
         if (isSecureProtocol(target.getProtocol())) {
             // Configure SSL
-            options.setSsl(true).setUseAlpn(true);
+            options.setSsl(true);
+            options.setUseAlpn(true);
 
             if (configuration.getProperty("http.ssl.openssl", Boolean.class, false)) {
                 options.setSslEngineOptions(new OpenSSLEngineOptions());
             }
 
             if (sslOptions != null) {
-                options.setVerifyHost(sslOptions.isHostnameVerifier()).setTrustAll(sslOptions.isTrustAll());
+                options.setTrustAll(sslOptions.isTrustAll());
 
                 // Client trust configuration
                 if (!sslOptions.isTrustAll() && sslOptions.getTrustStore() != null) {
@@ -258,7 +325,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             } else {
                                 throw new EndpointException("Missing PEM certificate value for endpoint " + endpoint.name());
                             }
-                            options.setPemTrustOptions(pemTrustOptions);
+                            options.setTrustOptions(pemTrustOptions);
                             break;
                         case PKCS12:
                             PKCS12TrustStore pkcs12TrustStore = (PKCS12TrustStore) sslOptions.getTrustStore();
@@ -272,7 +339,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             } else {
                                 throw new EndpointException("Missing PKCS12 value for endpoint " + endpoint.name());
                             }
-                            options.setPfxTrustOptions(pfxOptions);
+                            options.setTrustOptions(pfxOptions);
                             break;
                         case JKS:
                             JKSTrustStore jksTrustStore = (JKSTrustStore) sslOptions.getTrustStore();
@@ -286,7 +353,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             } else {
                                 throw new EndpointException("Missing JKS value for endpoint " + endpoint.name());
                             }
-                            options.setTrustStoreOptions(jksOptions);
+                            options.setTrustOptions(jksOptions);
                             break;
                     }
                 }
@@ -307,7 +374,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                             } else if (pemKeyStore.getKeyContent() != null && !pemKeyStore.getKeyContent().isEmpty()) {
                                 pemKeyCertOptions.setKeyValue(io.vertx.core.buffer.Buffer.buffer(pemKeyStore.getKeyContent()));
                             }
-                            options.setPemKeyCertOptions(pemKeyCertOptions);
+                            options.setKeyCertOptions(pemKeyCertOptions);
                             break;
                         case PKCS12:
                             PKCS12KeyStore pkcs12KeyStore = (PKCS12KeyStore) sslOptions.getKeyStore();
@@ -319,7 +386,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                                 byte[] decode = Base64.getDecoder().decode(pkcs12KeyStore.getContent());
                                 pfxOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             }
-                            options.setPfxKeyCertOptions(pfxOptions);
+                            options.setKeyCertOptions(pfxOptions);
                             break;
                         case JKS:
                             JKSKeyStore jksKeyStore = (JKSKeyStore) sslOptions.getKeyStore();
@@ -331,14 +398,12 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                                 byte[] decode = Base64.getDecoder().decode(jksKeyStore.getContent());
                                 jksOptions.setValue(io.vertx.core.buffer.Buffer.buffer(decode));
                             }
-                            options.setKeyStoreOptions(jksOptions);
+                            options.setKeyCertOptions(jksOptions);
                             break;
                     }
                 }
             }
         }
-
-        return options;
     }
 
     @Override
@@ -366,7 +431,11 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     }
 
     private Function<Thread, HttpClient> createHttpClient() {
-        return thread -> Vertx.currentContext().owner().createHttpClient(options);
+        return thread -> Vertx.currentContext().owner().createHttpClient(httpClientOptions, poolOptions);
+    }
+
+    private Function<Thread, WebSocketClient> createWebSocketClient() {
+        return thread -> Vertx.currentContext().owner().createWebSocketClient(webSocketOptions);
     }
 
     /**
@@ -385,62 +454,74 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         LOGGER.debug("Create HTTP connector with configuration: ");
         LOGGER.debug(
             "\t" +
-            options.getProtocolVersion() +
-            " {" +
-            "ConnectTimeout='" +
-            options.getConnectTimeout() +
-            '\'' +
-            ", KeepAlive='" +
-            options.isKeepAlive() +
-            '\'' +
-            ", KeepAliveTimeout='" +
-            options.getKeepAliveTimeout() +
-            '\'' +
-            ", IdleTimeout='" +
-            options.getIdleTimeout() +
-            '\'' +
-            ", MaxChunkSize='" +
-            options.getMaxChunkSize() +
-            '\'' +
-            ", MaxPoolSize='" +
-            options.getMaxPoolSize() +
-            '\'' +
-            ", MaxWaitQueueSize='" +
-            options.getMaxWaitQueueSize() +
-            '\'' +
-            ", Pipelining='" +
-            options.isPipelining() +
-            '\'' +
-            ", PipeliningLimit='" +
-            options.getPipeliningLimit() +
-            '\'' +
-            ", TryUseCompression='" +
-            options.isTryUseCompression() +
-            '\'' +
-            '}'
-        );
-
-        if (options.isSsl()) {
-            LOGGER.debug("\tSSL {" + "TrustAll='" + options.isTrustAll() + '\'' + ", VerifyHost='" + options.isVerifyHost() + '\'' + '}');
-        }
-
-        if (options.getProxyOptions() != null) {
-            LOGGER.debug(
-                "\tProxy {" +
-                "Type='" +
-                options.getProxyOptions().getType() +
-                ", Host='" +
-                options.getProxyOptions().getHost() +
+                httpClientOptions.getProtocolVersion() +
+                " {" +
+                "ConnectTimeout='" +
+                httpClientOptions.getConnectTimeout() +
                 '\'' +
-                ", Port='" +
-                options.getProxyOptions().getPort() +
+                ", KeepAlive='" +
+                httpClientOptions.isKeepAlive() +
+                '\'' +
+                ", KeepAliveTimeout='" +
+                httpClientOptions.getKeepAliveTimeout() +
+                '\'' +
+                ", IdleTimeout='" +
+                httpClientOptions.getIdleTimeout() +
+                '\'' +
+                ", MaxChunkSize='" +
+                httpClientOptions.getMaxChunkSize() +
+                '\'' +
+                ", Http1MaxPoolSize='" +
+                poolOptions.getHttp1MaxSize() +
+                '\'' +
+                ", Http2MaxPoolSize='" +
+                poolOptions.getHttp2MaxSize() +
+                '\'' +
+                ", MaxWaitQueueSize='" +
+                poolOptions.getMaxWaitQueueSize() +
+                '\'' +
+                ", Pipelining='" +
+                httpClientOptions.isPipelining() +
+                '\'' +
+                ", PipeliningLimit='" +
+                httpClientOptions.getPipeliningLimit() +
+                '\'' +
+                ", DecompressionSupported='" +
+                httpClientOptions.isDecompressionSupported() +
                 '\'' +
                 '}'
+        );
+
+        if (httpClientOptions.isSsl()) {
+            LOGGER.debug(
+                "\tSSL {" +
+                    "TrustAll='" +
+                    httpClientOptions.isTrustAll() +
+                    '\'' +
+                    ", VerifyHost='" +
+                    httpClientOptions.isVerifyHost() +
+                    '\'' +
+                    '}'
+            );
+        }
+
+        if (httpClientOptions.getProxyOptions() != null) {
+            LOGGER.debug(
+                "\tProxy {" +
+                    "Type='" +
+                    httpClientOptions.getProxyOptions().getType() +
+                    ", Host='" +
+                    httpClientOptions.getProxyOptions().getHost() +
+                    '\'' +
+                    ", Port='" +
+                    httpClientOptions.getProxyOptions().getPort() +
+                    '\'' +
+                    '}'
             );
         }
     }
 
-    private void setSystemProxy(HttpClientOptions options) {
+    private void setSystemProxy(ClientOptionsBase options) {
         try {
             options.setProxyOptions(VertxProxyOptionsUtils.buildProxyOptions(configuration));
         } catch (Exception e) {

@@ -41,8 +41,11 @@ import io.gravitee.node.api.configuration.Configuration;
 import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.http.*;
 import io.vertx.core.http.HttpConnection;
+import io.vertx.core.net.JksOptions;
+import io.vertx.core.net.PfxOptions;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -112,6 +115,7 @@ public class HttpConnectorTest {
         connector.httpClients.put(Thread.currentThread(), httpClient);
         lenient().when(request.headers()).thenReturn(spyHeaders);
         lenient().when(httpClientRequest.connection()).thenReturn(mock(HttpConnection.class));
+        lenient().when(httpClientRequest.response()).thenReturn(Promise.<HttpClientResponse>promise().future());
         connector.doStart();
     }
 
@@ -122,13 +126,9 @@ public class HttpConnectorTest {
 
     @Test
     public void shouldOverrideHeaders() {
-        when(endpoint.getHeaders())
-            .thenReturn(
-                Arrays.asList(
-                    new HttpHeader(HttpHeaderNames.HOST, "api.gravitee.io"),
-                    new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io")
-                )
-            );
+        when(endpoint.getHeaders()).thenReturn(
+            Arrays.asList(new HttpHeader(HttpHeaderNames.HOST, "api.gravitee.io"), new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io"))
+        );
 
         connector.request(executionContext, request, connectionHandler);
 
@@ -156,10 +156,10 @@ public class HttpConnectorTest {
         HttpClientOptions httpClientOptions = connector.createHttpClientOptions();
 
         assertNotNull(httpClientOptions);
-        assertNotNull(httpClientOptions.getPfxKeyCertOptions());
-        assertEquals(KEYSTORE, httpClientOptions.getPfxKeyCertOptions().getValue().toString());
-        assertNotNull(httpClientOptions.getPfxTrustOptions());
-        assertEquals(TRUSTSTORE, httpClientOptions.getPfxTrustOptions().getValue().toString());
+        assertNotNull(httpClientOptions.getKeyCertOptions());
+        assertEquals(KEYSTORE, ((PfxOptions) httpClientOptions.getKeyCertOptions()).getValue().toString());
+        assertNotNull(httpClientOptions.getTrustOptions());
+        assertEquals(TRUSTSTORE, ((PfxOptions) httpClientOptions.getTrustOptions()).getValue().toString());
     }
 
     @Test
@@ -180,10 +180,10 @@ public class HttpConnectorTest {
         HttpClientOptions httpClientOptions = connector.createHttpClientOptions();
 
         assertNotNull(httpClientOptions);
-        assertNotNull(httpClientOptions.getKeyStoreOptions());
-        assertEquals(KEYSTORE, httpClientOptions.getKeyStoreOptions().getValue().toString());
+        assertNotNull(httpClientOptions.getKeyCertOptions());
+        assertEquals(KEYSTORE, ((JksOptions) httpClientOptions.getKeyCertOptions()).getValue().toString());
         assertNotNull(httpClientOptions.getTrustOptions());
-        assertEquals(TRUSTSTORE, httpClientOptions.getTrustStoreOptions().getValue().toString());
+        assertEquals(TRUSTSTORE, ((JksOptions) httpClientOptions.getTrustOptions()).getValue().toString());
     }
 
     @Nested

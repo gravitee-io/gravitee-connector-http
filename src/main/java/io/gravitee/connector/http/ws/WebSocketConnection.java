@@ -28,7 +28,9 @@ import io.gravitee.gateway.api.stream.WriteStream;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.UpgradeRejectedException;
+import io.vertx.core.http.WebSocketClient;
 import io.vertx.core.http.WebSocketConnectOptions;
+import io.vertx.core.internal.buffer.BufferInternal;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -72,6 +74,19 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
         Handler<Void> connectionHandler,
         Handler<Void> tracker
     ) {
+        throw new UnsupportedOperationException("Not supported.");
+    }
+
+    @Override
+    public void connect(
+        ExecutionContext context,
+        WebSocketClient webSocketClient,
+        int port,
+        String host,
+        String uri,
+        Handler<Void> connectionHandler,
+        Handler<Void> tracker
+    ) {
         // Remove hop-by-hop headers.
         for (CharSequence header : WS_HOP_HEADERS) {
             wsProxyRequest.headers().remove(header);
@@ -86,9 +101,9 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
 
         wsProxyRequest.headers().forEach(entry -> options.addHeader(entry.getKey(), entry.getValue()));
 
-        httpClient.webSocket(
-            options,
-            event -> {
+        webSocketClient
+            .connect(options)
+            .onComplete(event -> {
                 if (event.succeeded()) {
                     event.result().pause();
                     // The client -> gateway connection must be upgraded now that the one between gateway -> upstream
@@ -103,7 +118,7 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
                                         .result()
                                         .writeFrame(
                                             io.vertx.core.http.WebSocketFrame.binaryFrame(
-                                                io.vertx.core.buffer.Buffer.buffer(frame.data().getNativeBuffer()),
+                                                BufferInternal.buffer(frame.data().getNativeBuffer()),
                                                 frame.isFinal()
                                             )
                                         );
@@ -179,8 +194,7 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
 
                     tracker.handle(null);
                 }
-            }
-        );
+            });
     }
 
     @Override

@@ -20,7 +20,6 @@ import io.gravitee.common.util.MultiValueMap;
 import io.gravitee.gateway.api.http.DefaultHttpHeaders;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.vertx.core.MultiMap;
-import io.vertx.core.http.impl.headers.HeadersMultiMap;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -129,7 +128,9 @@ public class VertxHttpHeaders implements HttpHeaders, MultiValueMap<String, Stri
 
     @Override
     public boolean containsValue(Object value) {
-        return entrySet().stream().anyMatch(entry -> value.equals(entry.getValue()));
+        return entrySet()
+            .stream()
+            .anyMatch(entry -> value.equals(entry.getValue()));
     }
 
     /**
@@ -171,13 +172,18 @@ public class VertxHttpHeaders implements HttpHeaders, MultiValueMap<String, Stri
 
     @Override
     public void putAll(Map<? extends String, ? extends List<String>> map) {
-        final MultiMap multimap = HeadersMultiMap.headers();
+        final MultiMap multimap = io.vertx.core.http.HttpHeaders.headers();
 
         // Flatten the Map<String, List<String>> to be able to add each entry one by one to a new Multimap object
         map
             .entrySet()
             .stream()
-            .flatMap(entry -> entry.getValue().stream().map(v -> Map.entry(entry.getKey(), v)))
+            .flatMap(entry ->
+                entry
+                    .getValue()
+                    .stream()
+                    .map(v -> Map.entry(entry.getKey(), v))
+            )
             .forEach(entry -> multimap.add(entry.getKey(), entry.getValue()));
 
         headers.setAll(multimap);

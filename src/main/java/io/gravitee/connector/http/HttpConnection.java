@@ -36,9 +36,8 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.MultiMap;
 import io.vertx.core.http.*;
-import io.vertx.core.http.impl.headers.HeadersMultiMap;
+import io.vertx.core.internal.buffer.BufferInternal;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
@@ -117,7 +116,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         requestFuture.onComplete(event -> {
             //Copy the request options to initialize the observable http client request headers not null
             var observableRequestOptions = new RequestOptions(requestOptions);
-            observableRequestOptions.setHeaders(new HeadersMultiMap());
+            observableRequestOptions.setHeaders(io.vertx.core.http.HttpHeaders.headers());
             ObservableHttpClientRequest observableHttpClientRequest = new ObservableHttpClientRequest(observableRequestOptions);
 
             Span requestSpan = ctx.getTracer().startSpanFrom(observableHttpClientRequest);
@@ -135,10 +134,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 httpClientRequest = event.result();
                 observableHttpClientRequest.httpClientRequest(httpClientRequest);
 
-                httpClientRequest.response(response -> {
-                    // Prepare upstream response
-                    handleUpstreamResponse(ctx, response, tracker, requestSpan);
-                });
+                httpClientRequest
+                    .response()
+                    .onComplete(response -> {
+                        // Prepare upstream response
+                        handleUpstreamResponse(ctx, response, tracker, requestSpan);
+                    });
 
                 httpClientRequest
                     .connection()
@@ -168,6 +169,19 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 tracker.handle(null);
             }
         });
+    }
+
+    @Override
+    public void connect(
+        ExecutionContext context,
+        WebSocketClient webSocketClient,
+        int port,
+        String host,
+        String uri,
+        Handler<Void> connectionHandler,
+        Handler<Void> tracker
+    ) {
+        throw new UnsupportedOperationException("Not supported.");
     }
 
     private void handleException(Throwable cause) {
@@ -349,7 +363,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 httpClientRequest.headers().set(io.gravitee.gateway.api.http.HttpHeaderNames.CONTENT_LENGTH, "0");
             }
 
-            httpClientRequest.write(io.vertx.core.buffer.Buffer.buffer(chunk.getNativeBuffer()));
+            httpClientRequest.write(BufferInternal.buffer(chunk.getNativeBuffer()));
         }
         return this;
     }
@@ -421,11 +435,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     @Override
     public Connection writeCustomFrame(HttpFrame frame) {
         if (httpClientRequest != null) {
-            httpClientRequest.writeCustomFrame(
-                frame.type(),
-                frame.flags(),
-                io.vertx.core.buffer.Buffer.buffer(frame.payload().getNativeBuffer())
-            );
+            httpClientRequest.writeCustomFrame(frame.type(), frame.flags(), BufferInternal.buffer(frame.payload().getNativeBuffer()));
         }
 
         return this;

@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.gravitee.gateway.api.http.DefaultHttpHeaders;
 import io.gravitee.gateway.api.http.HttpHeaders;
-import io.vertx.core.http.impl.headers.HeadersMultiMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.Before;
@@ -43,7 +42,7 @@ public class VertxHttpHeadersTest {
 
     @Before
     public void setUp() {
-        cut = new VertxHttpHeaders(HeadersMultiMap.headers());
+        cut = new VertxHttpHeaders(io.vertx.core.http.HttpHeaders.headers());
         cut.add(FIRST_HEADER, FIRST_HEADER_VALUE_1);
         cut.add(FIRST_HEADER, FIRST_HEADER_VALUE_2);
         cut.add(SECOND_HEADER, SECOND_HEADER_VALUE);

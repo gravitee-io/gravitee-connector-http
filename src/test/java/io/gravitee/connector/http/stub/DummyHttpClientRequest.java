@@ -15,21 +15,22 @@
  */
 package io.gravitee.connector.http.stub;
 
-import io.vertx.codegen.annotations.Nullable;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
+import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.ClientForm;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpConnection;
+import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpVersion;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.http.StreamPriority;
-import io.vertx.core.http.impl.headers.HeadersMultiMap;
 import io.vertx.core.net.HostAndPort;
 import java.util.function.Function;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Dummy implementation of {@link HttpClientRequest} for testing purpose
@@ -41,30 +42,25 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     private final MultiMap headers;
     private final HttpConnection connection;
 
-    private boolean chunked = false;
-
     public DummyHttpClientRequest() {
-        this.headers = new HeadersMultiMap();
+        this.headers = HttpHeaders.headers();
         this.connection = new ThrowingOnGoAwayHttpConnection();
     }
 
     public DummyHttpClientRequest(RequestOptions options) {
-        this.headers = new HeadersMultiMap().addAll(options.getHeaders());
+        this.headers = HttpHeaders.headers().addAll(options.getHeaders());
         this.connection = new ThrowingOnGoAwayHttpConnection();
     }
 
     @Override
     public HttpClientRequest exceptionHandler(Handler<Throwable> handler) {
-        return null;
+        return this;
     }
 
     @Override
     public Future<Void> write(Buffer data) {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public void write(Buffer data, Handler<AsyncResult<Void>> handler) {}
 
     @Override
     public HttpClientRequest setWriteQueueMaxSize(int maxSize) {
@@ -78,32 +74,12 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest drainHandler(Handler<Void> handler) {
-        return null;
-    }
-
-    @Override
-    public HttpClientRequest authority(HostAndPort hostAndPort) {
-        return null;
-    }
-
-    @Override
-    public HttpClientRequest setHost(String host) {
-        return null;
-    }
-
-    @Override
-    public String getHost() {
-        return null;
-    }
-
-    @Override
-    public HttpClientRequest setPort(int port) {
         return this;
     }
 
     @Override
-    public int getPort() {
-        return 0;
+    public HttpClientRequest authority(HostAndPort hostAndPort) {
+        return this;
     }
 
     @Override
@@ -133,7 +109,6 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest setChunked(boolean chunked) {
-        this.chunked = chunked;
         return this;
     }
 
@@ -208,7 +183,7 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public HttpClientRequest traceOperation(String s) {
-        return null;
+        return this;
     }
 
     @Override
@@ -223,113 +198,88 @@ public class DummyHttpClientRequest implements HttpClientRequest {
 
     @Override
     public Future<Void> write(String chunk) {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public void write(String chunk, Handler<AsyncResult<Void>> handler) {}
 
     @Override
     public Future<Void> write(String chunk, String enc) {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
-    public void write(String chunk, String enc, Handler<AsyncResult<Void>> handler) {}
-
-    @Override
     public HttpClientRequest continueHandler(Handler<Void> handler) {
-        return null;
+        return this;
     }
 
     @Override
     public HttpClientRequest earlyHintsHandler(@Nullable Handler<MultiMap> handler) {
-        return null;
+        return this;
     }
 
     @Override
     public HttpClientRequest redirectHandler(@Nullable Function<HttpClientResponse, Future<HttpClientRequest>> function) {
-        return null;
+        return this;
     }
 
     @Override
     public Future<Void> sendHead() {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public HttpClientRequest sendHead(Handler<AsyncResult<Void>> completionHandler) {
-        return null;
-    }
-
-    @Override
-    public void connect(Handler<AsyncResult<HttpClientResponse>> handler) {}
 
     @Override
     public Future<HttpClientResponse> connect() {
-        return null;
-    }
-
-    @Override
-    public HttpClientRequest response(Handler<AsyncResult<HttpClientResponse>> handler) {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
     public Future<HttpClientResponse> response() {
-        return null;
+        // Return a pending future that never completes - tests don't need response handling
+        return Promise.<HttpClientResponse>promise().future();
+    }
+
+    @Override
+    public Future<HttpClientResponse> send(ClientForm clientForm) {
+        return Future.succeededFuture();
     }
 
     @Override
     public Future<Void> end(String chunk) {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public void end(String chunk, Handler<AsyncResult<Void>> handler) {}
 
     @Override
     public Future<Void> end(String chunk, String enc) {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public void end(String chunk, String enc, Handler<AsyncResult<Void>> handler) {}
 
     @Override
     public Future<Void> end(Buffer chunk) {
-        return null;
+        return Future.succeededFuture();
     }
-
-    @Override
-    public void end(Buffer chunk, Handler<AsyncResult<Void>> handler) {}
 
     @Override
     public Future<Void> end() {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
-    public void end(Handler<AsyncResult<Void>> handler) {}
-
-    @Override
-    public HttpClientRequest setTimeout(long timeoutMs) {
-        return null;
+    public HttpClientRequest idleTimeout(long l) {
+        return this;
     }
 
     @Override
     public HttpClientRequest pushHandler(Handler<HttpClientRequest> handler) {
-        return null;
+        return this;
     }
 
     @Override
-    public boolean reset(long code) {
-        return false;
+    public Future<Void> reset(long code) {
+        return Future.succeededFuture();
     }
 
     @Override
-    public boolean reset(long code, Throwable cause) {
-        return false;
+    public Future<Void> reset(long code, Throwable cause) {
+        return Future.succeededFuture();
     }
 
     @Override
@@ -338,8 +288,8 @@ public class DummyHttpClientRequest implements HttpClientRequest {
     }
 
     @Override
-    public HttpClientRequest writeCustomFrame(int type, int flags, Buffer payload) {
-        return null;
+    public Future<Void> writeCustomFrame(int type, int flags, Buffer payload) {
+        return Future.succeededFuture();
     }
 
     @Override

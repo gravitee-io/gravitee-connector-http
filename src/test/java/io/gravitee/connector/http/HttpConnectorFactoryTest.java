@@ -178,7 +178,9 @@ public class HttpConnectorFactoryTest {
 
         Connector<Connection, ProxyRequest> connector = factory.create(target, configuration, connectorBuilder);
         assertThat(connector).isInstanceOf(HttpConnector.class);
-        assertThat(((HttpConnector) connector).endpoint.getHeaders())
-            .containsExactly(new HttpHeader("X-Gravitee-Api", "test"), new HttpHeader("Empty-Header", ""));
+        assertThat(((HttpConnector) connector).endpoint.getHeaders()).containsExactly(
+            new HttpHeader("X-Gravitee-Api", "test"),
+            new HttpHeader("Empty-Header", "")
+        );
     }
 }

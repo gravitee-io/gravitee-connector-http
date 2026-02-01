@@ -20,6 +20,7 @@ import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.handler.Handler;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.WebSocketClient;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -36,6 +37,16 @@ public abstract class AbstractHttpConnection<E extends HttpEndpoint> extends io.
     public abstract void connect(
         final ExecutionContext context,
         HttpClient httpClient,
+        int port,
+        String host,
+        String uri,
+        Handler<Void> connectionHandler,
+        Handler<Void> tracker
+    );
+
+    public abstract void connect(
+        final ExecutionContext context,
+        WebSocketClient webSocketClient,
         int port,
         String host,
         String uri,

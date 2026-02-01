@@ -15,8 +15,6 @@
  */
 package io.gravitee.connector.http.stub;
 
-import io.vertx.codegen.annotations.Nullable;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
@@ -29,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
-import javax.security.cert.X509Certificate;
+import org.jspecify.annotations.Nullable;
 
 /**
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
@@ -47,37 +45,27 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
 
     @Override
     public HttpConnection goAwayHandler(@Nullable Handler<GoAway> handler) {
-        return null;
+        return this;
     }
 
     @Override
     public HttpConnection shutdownHandler(@Nullable Handler<Void> handler) {
-        return null;
-    }
-
-    @Override
-    public void shutdown(long timeout, Handler<AsyncResult<Void>> handler) {
-        System.out.println("");
-    }
-
-    @Override
-    public Future<Void> shutdown(long timeoutMs) {
-        return null;
+        return this;
     }
 
     @Override
     public Future<Void> shutdown(final long timeout, final TimeUnit unit) {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
     public HttpConnection closeHandler(Handler<Void> handler) {
-        return null;
+        return this;
     }
 
     @Override
     public Future<Void> close() {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
@@ -87,12 +75,7 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
 
     @Override
     public Future<Void> updateSettings(Http2Settings settings) {
-        return null;
-    }
-
-    @Override
-    public HttpConnection updateSettings(Http2Settings settings, Handler<AsyncResult<Void>> completionHandler) {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
@@ -102,22 +85,17 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
 
     @Override
     public HttpConnection remoteSettingsHandler(Handler<Http2Settings> handler) {
-        return null;
-    }
-
-    @Override
-    public HttpConnection ping(Buffer data, Handler<AsyncResult<Buffer>> pongHandler) {
-        return null;
+        return this;
     }
 
     @Override
     public Future<Buffer> ping(Buffer data) {
-        return null;
+        return Future.succeededFuture();
     }
 
     @Override
     public HttpConnection pingHandler(@Nullable Handler<Buffer> handler) {
-        return null;
+        return this;
     }
 
     @Override
@@ -154,11 +132,6 @@ public class ThrowingOnGoAwayHttpConnection implements HttpConnection {
     @Override
     public SSLSession sslSession() {
         return null;
-    }
-
-    @Override
-    public X509Certificate[] peerCertificateChain() throws SSLPeerUnverifiedException {
-        return new X509Certificate[0];
     }
 
     @Override

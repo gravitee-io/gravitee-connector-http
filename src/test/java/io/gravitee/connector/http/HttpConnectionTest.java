@@ -223,19 +223,19 @@ public class HttpConnectionTest {
         cut.connect(context, client, port, "example.com", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
         // Simulate timeout exception with "for server null" in the message
-        when(client.request(any()))
-            .thenReturn(
-                Future.failedFuture(
-                    new java.util.concurrent.TimeoutException(
-                        "The timeout period of 10000ms has been exceeded while executing GET /late for server null"
-                    )
+        when(client.request(any())).thenReturn(
+            Future.failedFuture(
+                new java.util.concurrent.TimeoutException(
+                    "The timeout period of 10000ms has been exceeded while executing GET /late for server null"
                 )
-            );
+            )
+        );
 
         cut.connect(context, client, port, "example.com", "/late", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
 
-        assertThat(requestMetrics.getMessage())
-            .isEqualTo("The timeout period of 10000ms has been exceeded while executing GET /late for server example.com:" + port);
+        assertThat(requestMetrics.getMessage()).isEqualTo(
+            "The timeout period of 10000ms has been exceeded while executing GET /late for server example.com:" + port
+        );
     }
 
     private int getAvailablePort() {

@@ -126,13 +126,9 @@ public class HttpConnectorTest {
 
     @Test
     public void shouldOverrideHeaders() {
-        when(endpoint.getHeaders())
-            .thenReturn(
-                Arrays.asList(
-                    new HttpHeader(HttpHeaderNames.HOST, "api.gravitee.io"),
-                    new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io")
-                )
-            );
+        when(endpoint.getHeaders()).thenReturn(
+            Arrays.asList(new HttpHeader(HttpHeaderNames.HOST, "api.gravitee.io"), new HttpHeader(HttpHeaderNames.HOST, "api2.gravitee.io"))
+        );
 
         connector.request(executionContext, request, connectionHandler);
 

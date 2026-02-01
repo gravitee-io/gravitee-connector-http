@@ -89,19 +89,18 @@ public class GrpcConnectionTest {
         when(endpoint.getHttpClientOptions()).thenReturn(httpClientOptions);
         when(request.method()).thenReturn(HttpMethod.POST);
         when(request.uri()).thenReturn("/");
-        when(client.request(any(RequestOptions.class)))
-            .thenAnswer(invocation -> {
-                RequestOptions options = invocation.getArgument(0);
+        when(client.request(any(RequestOptions.class))).thenAnswer(invocation -> {
+            RequestOptions options = invocation.getArgument(0);
 
-                java.lang.reflect.Field headersField = RequestOptions.class.getDeclaredField("headers");
-                headersField.setAccessible(true);
-                if (headersField.get(options) == null) {
-                    headersField.set(options, io.vertx.core.MultiMap.caseInsensitiveMultiMap());
-                }
+            java.lang.reflect.Field headersField = RequestOptions.class.getDeclaredField("headers");
+            headersField.setAccessible(true);
+            if (headersField.get(options) == null) {
+                headersField.set(options, io.vertx.core.MultiMap.caseInsensitiveMultiMap());
+            }
 
-                httpClientRequest = spy(new DummyHttpClientRequest(options));
-                return Future.succeededFuture(httpClientRequest);
-            });
+            httpClientRequest = spy(new DummyHttpClientRequest(options));
+            return Future.succeededFuture(httpClientRequest);
+        });
         when(executionContext.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
     }
 

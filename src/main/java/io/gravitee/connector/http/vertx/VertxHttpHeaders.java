@@ -128,7 +128,9 @@ public class VertxHttpHeaders implements HttpHeaders, MultiValueMap<String, Stri
 
     @Override
     public boolean containsValue(Object value) {
-        return entrySet().stream().anyMatch(entry -> value.equals(entry.getValue()));
+        return entrySet()
+            .stream()
+            .anyMatch(entry -> value.equals(entry.getValue()));
     }
 
     /**
@@ -176,7 +178,12 @@ public class VertxHttpHeaders implements HttpHeaders, MultiValueMap<String, Stri
         map
             .entrySet()
             .stream()
-            .flatMap(entry -> entry.getValue().stream().map(v -> Map.entry(entry.getKey(), v)))
+            .flatMap(entry ->
+                entry
+                    .getValue()
+                    .stream()
+                    .map(v -> Map.entry(entry.getKey(), v))
+            )
             .forEach(entry -> multimap.add(entry.getKey(), entry.getValue()));
 
         headers.setAll(multimap);

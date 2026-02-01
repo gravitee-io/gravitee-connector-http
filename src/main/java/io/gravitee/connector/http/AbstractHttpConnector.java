@@ -454,69 +454,69 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         LOGGER.debug("Create HTTP connector with configuration: ");
         LOGGER.debug(
             "\t" +
-            httpClientOptions.getProtocolVersion() +
-            " {" +
-            "ConnectTimeout='" +
-            httpClientOptions.getConnectTimeout() +
-            '\'' +
-            ", KeepAlive='" +
-            httpClientOptions.isKeepAlive() +
-            '\'' +
-            ", KeepAliveTimeout='" +
-            httpClientOptions.getKeepAliveTimeout() +
-            '\'' +
-            ", IdleTimeout='" +
-            httpClientOptions.getIdleTimeout() +
-            '\'' +
-            ", MaxChunkSize='" +
-            httpClientOptions.getMaxChunkSize() +
-            '\'' +
-            ", Http1MaxPoolSize='" +
-            poolOptions.getHttp1MaxSize() +
-            '\'' +
-            ", Http2MaxPoolSize='" +
-            poolOptions.getHttp2MaxSize() +
-            '\'' +
-            ", MaxWaitQueueSize='" +
-            poolOptions.getMaxWaitQueueSize() +
-            '\'' +
-            ", Pipelining='" +
-            httpClientOptions.isPipelining() +
-            '\'' +
-            ", PipeliningLimit='" +
-            httpClientOptions.getPipeliningLimit() +
-            '\'' +
-            ", DecompressionSupported='" +
-            httpClientOptions.isDecompressionSupported() +
-            '\'' +
-            '}'
+                httpClientOptions.getProtocolVersion() +
+                " {" +
+                "ConnectTimeout='" +
+                httpClientOptions.getConnectTimeout() +
+                '\'' +
+                ", KeepAlive='" +
+                httpClientOptions.isKeepAlive() +
+                '\'' +
+                ", KeepAliveTimeout='" +
+                httpClientOptions.getKeepAliveTimeout() +
+                '\'' +
+                ", IdleTimeout='" +
+                httpClientOptions.getIdleTimeout() +
+                '\'' +
+                ", MaxChunkSize='" +
+                httpClientOptions.getMaxChunkSize() +
+                '\'' +
+                ", Http1MaxPoolSize='" +
+                poolOptions.getHttp1MaxSize() +
+                '\'' +
+                ", Http2MaxPoolSize='" +
+                poolOptions.getHttp2MaxSize() +
+                '\'' +
+                ", MaxWaitQueueSize='" +
+                poolOptions.getMaxWaitQueueSize() +
+                '\'' +
+                ", Pipelining='" +
+                httpClientOptions.isPipelining() +
+                '\'' +
+                ", PipeliningLimit='" +
+                httpClientOptions.getPipeliningLimit() +
+                '\'' +
+                ", DecompressionSupported='" +
+                httpClientOptions.isDecompressionSupported() +
+                '\'' +
+                '}'
         );
 
         if (httpClientOptions.isSsl()) {
             LOGGER.debug(
                 "\tSSL {" +
-                "TrustAll='" +
-                httpClientOptions.isTrustAll() +
-                '\'' +
-                ", VerifyHost='" +
-                httpClientOptions.isVerifyHost() +
-                '\'' +
-                '}'
+                    "TrustAll='" +
+                    httpClientOptions.isTrustAll() +
+                    '\'' +
+                    ", VerifyHost='" +
+                    httpClientOptions.isVerifyHost() +
+                    '\'' +
+                    '}'
             );
         }
 
         if (httpClientOptions.getProxyOptions() != null) {
             LOGGER.debug(
                 "\tProxy {" +
-                "Type='" +
-                httpClientOptions.getProxyOptions().getType() +
-                ", Host='" +
-                httpClientOptions.getProxyOptions().getHost() +
-                '\'' +
-                ", Port='" +
-                httpClientOptions.getProxyOptions().getPort() +
-                '\'' +
-                '}'
+                    "Type='" +
+                    httpClientOptions.getProxyOptions().getType() +
+                    ", Host='" +
+                    httpClientOptions.getProxyOptions().getHost() +
+                    '\'' +
+                    ", Port='" +
+                    httpClientOptions.getProxyOptions().getPort() +
+                    '\'' +
+                    '}'
             );
         }
     }

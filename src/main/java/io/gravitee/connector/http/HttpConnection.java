@@ -191,12 +191,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             if (
                 timeoutHandler() != null &&
-                (
-                    cause instanceof ConnectException ||
+                (cause instanceof ConnectException ||
                     cause instanceof TimeoutException ||
                     cause instanceof NoRouteToHostException ||
-                    cause instanceof UnknownHostException
-                )
+                    cause instanceof UnknownHostException)
             ) {
                 handleConnectTimeout(cause);
             } else {

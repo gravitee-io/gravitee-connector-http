@@ -29,7 +29,7 @@
 
     <groupId>io.gravitee.connector</groupId>
     <artifactId>gravitee-connector-http</artifactId>
-    <version>5.0.8</version>
+    <version>6.0.0-beta.1</version>
 
     <name>Gravitee.io - Connector - HTTP</name>
 

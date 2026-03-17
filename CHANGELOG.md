@@ -1,3 +1,10 @@
+## [5.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.8...5.0.9) (2026-03-17)
+
+
+### Bug Fixes
+
+* use set instead of add when copying OTEL-injected headers ([e7c142c](https://github.com/gravitee-io/gravitee-connector-http/commit/e7c142c41bea8d53cd50d29b7703129fa3ebcc07))
+
 ## [5.0.8](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.7...5.0.8) (2025-12-18)
 
 

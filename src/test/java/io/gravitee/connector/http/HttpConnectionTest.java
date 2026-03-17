@@ -154,6 +154,19 @@ public class HttpConnectionTest {
     }
 
     @Test
+    public void should_replace_existing_traceparent_header_when_tracing_is_enabled() {
+        when(context.getTracer()).thenReturn(new Tracer(null, new DummyTracer()));
+
+        headers.set(TRACEPARENT_HEADER, "00-existing-trace-id-existing-span-id-01");
+
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.writeUpstreamHeaders();
+
+        assertThat(httpClientRequest.headers().getAll(TRACEPARENT_HEADER)).hasSize(1).containsExactly(TRACEPARENT_HEADER_VALUE);
+    }
+
+    @Test
     public void should_write() {
         cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
         assertThat(httpClientRequest.headers().get(CONTENT_LENGTH)).isNull();

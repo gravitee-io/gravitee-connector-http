@@ -127,7 +127,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             observableHttpClientRequest
                 .headers()
                 .forEach(header -> {
-                    request.headers().add(header.getKey(), header.getValue());
+                    request.headers().set(header.getKey(), header.getValue());
                 });
             cancelHandler(tracker);
 

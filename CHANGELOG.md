@@ -1,3 +1,20 @@
+# [6.0.0-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...6.0.0-alpha.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* bump gravitee-parent and gravitee orb ([a54af6d](https://github.com/gravitee-io/gravitee-connector-http/commit/a54af6dff7bea208afa4174d07663abb246f31d1))
+
+
+### Features
+
+* upgrade to vertx 5 ([cce957d](https://github.com/gravitee-io/gravitee-connector-http/commit/cce957dd6101106554469f5555c4a9280b9c40ab))
+
+
+### BREAKING CHANGES
+
+* upgrade to vertx 5.x
+
 ## [5.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.8...5.0.9) (2026-03-17)
 
 

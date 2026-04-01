@@ -34,7 +34,7 @@
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
-        <gravitee-apim.version>4.12.0-SNAPSHOT</gravitee-apim.version>
+        <gravitee-apim.version>4.10.9</gravitee-apim.version>
 
         <!-- Need to override the version to build a version so APIM can be updated with it -->
         <!-- Will be removed once APIM version is built -->

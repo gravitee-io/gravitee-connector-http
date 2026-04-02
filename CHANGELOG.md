@@ -1,3 +1,10 @@
+# [6.0.0-alpha.2](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.0-alpha.1...6.0.0-alpha.2) (2026-04-02)
+
+
+### Bug Fixes
+
+* use a released version of APIM ([eb27896](https://github.com/gravitee-io/gravitee-connector-http/commit/eb278964a07120cb31c8137ffd502f2a4de6dd1d))
+
 # [6.0.0-alpha.1](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...6.0.0-alpha.1) (2026-03-30)
 
 

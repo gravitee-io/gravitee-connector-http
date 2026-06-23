@@ -318,5 +318,15 @@ public class HttpConnectionTest {
         public io.gravitee.node.api.opentelemetry.Tracer stop() throws Exception {
             return null;
         }
+
+        @Override
+        public String traceId(Context context) {
+            return null;
+        }
+
+        @Override
+        public String spanId(Context context) {
+            return null;
+        }
     }
 }

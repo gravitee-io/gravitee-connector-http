@@ -1,3 +1,22 @@
+# [6.0.0](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...6.0.0) (2026-06-23)
+
+
+### Bug Fixes
+
+* bump gravitee-parent and gravitee orb ([ab3df66](https://github.com/gravitee-io/gravitee-connector-http/commit/ab3df6669d035eb7f0368e4201aa01b5d44c2193))
+* close WebSocketClient instances on stop and cache client factories ([b53b4be](https://github.com/gravitee-io/gravitee-connector-http/commit/b53b4beb52cfbe114c10092b10a8dfa4eb77c7c0))
+* use a released version of APIM ([2a6cc0b](https://github.com/gravitee-io/gravitee-connector-http/commit/2a6cc0b0253c0565cb05b88727d10921a72c8988))
+
+
+### Features
+
+* upgrade to vertx 5 ([c4ad6fc](https://github.com/gravitee-io/gravitee-connector-http/commit/c4ad6fc74de6acdf9a61c152a69aa387b35641d9))
+
+
+### BREAKING CHANGES
+
+* upgrade to vertx 5.x
+
 ## [5.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.8...5.0.9) (2026-03-17)
 
 

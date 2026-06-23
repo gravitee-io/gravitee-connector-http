@@ -87,6 +87,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     private HttpClientOptions httpClientOptions;
     private WebSocketClientOptions webSocketOptions;
     private PoolOptions poolOptions;
+    private volatile Function<Thread, HttpClient> httpClientFactory;
+    private volatile Function<Thread, WebSocketClient> webSocketClientFactory;
 
     /**
      * Dummy {@link URLStreamHandler} implementation to avoid unknown protocol issue with default implementation
@@ -141,7 +143,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             final AbstractHttpConnection<HttpEndpoint> connection = create(request);
 
             if (connection instanceof WebSocketConnection) {
-                final WebSocketClient webSocketClient = webSocketClients.computeIfAbsent(Thread.currentThread(), createWebSocketClient());
+                final WebSocketClient webSocketClient = webSocketClients.computeIfAbsent(Thread.currentThread(), webSocketClientFactory);
                 requestTracker.incrementAndGet();
 
                 // Connect to the upstream
@@ -156,7 +158,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                 );
             } else {
                 // Grab an instance of the HTTP client
-                final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), createHttpClient());
+                final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), httpClientFactory);
                 requestTracker.incrementAndGet();
 
                 // Connect to the upstream
@@ -182,6 +184,8 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         this.httpClientOptions = this.createHttpClientOptions();
         this.poolOptions = this.createPoolOptions();
         this.webSocketOptions = this.createWebSocketOptions();
+        this.httpClientFactory = thread -> Vertx.currentContext().owner().createHttpClient(httpClientOptions, poolOptions);
+        this.webSocketClientFactory = thread -> Vertx.currentContext().owner().createWebSocketClient(webSocketOptions);
         printHttpClientConfiguration();
     }
 
@@ -428,14 +432,19 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                     LOGGER.warn(ise.getMessage());
                 }
             });
-    }
 
-    private Function<Thread, HttpClient> createHttpClient() {
-        return thread -> Vertx.currentContext().owner().createHttpClient(httpClientOptions, poolOptions);
-    }
+        webSocketClients
+            .values()
+            .forEach(webSocketClient -> {
+                try {
+                    webSocketClient.close();
+                } catch (IllegalStateException ise) {
+                    LOGGER.warn(ise.getMessage());
+                }
+            });
 
-    private Function<Thread, WebSocketClient> createWebSocketClient() {
-        return thread -> Vertx.currentContext().owner().createWebSocketClient(webSocketOptions);
+        httpClients.clear();
+        webSocketClients.clear();
     }
 
     /**

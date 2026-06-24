@@ -34,7 +34,7 @@
     <name>Gravitee.io - Connector - HTTP</name>
 
     <properties>
-        <gravitee-apim.version>4.12.0-milestone.5</gravitee-apim.version>
+        <gravitee-apim.version>4.12.0-milestone.6</gravitee-apim.version>
         <vertx.version>5.0.9</vertx.version>
 
         <maven-assembly-plugin.version>3.8.0</maven-assembly-plugin.version>

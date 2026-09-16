@@ -118,6 +118,13 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private int bufferedUpstreamBytes = 0;
     private boolean bufferThresholdExceededLogged = false;
     private boolean requestOneChunkAtATime;
+    // Whether upstream chunks arriving before the downstream body handler is attached are buffered
+    // locally instead of dropped. Keyed on keep-alive alone, not on the protocol: a non-keep-alive
+    // connection is closed by the backend as soon as the response completes, so a chunk dropped
+    // while the handler is still being attached is never retransmitted - that is true of a
+    // multiplexed protocol just as it is of HTTP/1.x. Keep-alive endpoints retain the original
+    // drop-and-log behavior.
+    private boolean bufferChunksUntilBodyHandlerAttached;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -305,8 +312,14 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             // original behavior instead of taking a pacing change it has no bug to be fixed by.
             // Gated positively on HTTP/1.x rather than negatively on "not HTTP/2", so a future
             // multiplexed protocol added to HttpVersion defaults to the original behavior too.
+            //
+            // That HTTP/1.x gate scopes the pacing mechanism only. Buffering chunks that arrive
+            // before the downstream body handler is attached is a separate concern with no
+            // protocol dependency - nothing about it relies on socket-level autoRead - so it
+            // applies to every non-keep-alive endpoint whatever version was negotiated.
             boolean isHttp1 = httpClientRequest.version() == HttpVersion.HTTP_1_0 || httpClientRequest.version() == HttpVersion.HTTP_1_1;
-            requestOneChunkAtATime = !endpoint.getHttpClientOptions().isKeepAlive() && isHttp1;
+            requestOneChunkAtATime = isKeepAliveDisabled() && isHttp1;
+            bufferChunksUntilBodyHandlerAttached = isKeepAliveDisabled();
 
             // Tracks whether a chunk was delivered since the last drain check below, so a
             // connection-close can wait out re-reads still in flight (e.g. autoRead being
@@ -377,8 +390,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         return response;
     }
 
+    private boolean isKeepAliveDisabled() {
+        return !endpoint.getHttpClientOptions().isKeepAlive();
+    }
+
     private void deliverUpstreamChunk(byte[] chunkBytes) {
-        if (requestOneChunkAtATime) {
+        if (bufferChunksUntilBodyHandlerAttached) {
             deliverUpstreamChunkWithLocalBuffering(chunkBytes);
         } else {
             deliverUpstreamChunkForKeepAliveEndpoint(chunkBytes);
@@ -471,7 +488,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             return;
         }
 
-        if (requestOneChunkAtATime) {
+        if (bufferChunksUntilBodyHandlerAttached) {
             Handler<Buffer> bodyHandler = response.bodyHandler();
             if (bodyHandler != null) {
                 flushBufferedUpstreamChunks(bodyHandler);

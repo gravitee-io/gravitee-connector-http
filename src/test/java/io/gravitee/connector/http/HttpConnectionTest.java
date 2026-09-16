@@ -331,6 +331,35 @@ public class HttpConnectionTest {
         verify(clientResponse, never()).fetch(anyLong());
     }
 
+    static Stream<Arguments> protocolVersions() {
+        return Stream.of(Arguments.of("HTTP/1.1", HttpVersion.HTTP_1_1), Arguments.of("HTTP/2", HttpVersion.HTTP_2));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("protocolVersions")
+    public void should_deliver_chunks_received_before_the_downstream_body_handler_is_attached_on_a_non_keep_alive_endpoint(
+        String protocol,
+        HttpVersion version
+    ) {
+        httpClientOptions.setKeepAlive(false);
+        when(httpClientRequest.version()).thenReturn(version);
+
+        var deliveredBody = new StringBuilder();
+        var capturedResponse = new AtomicReference<Response>();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, capturedResponse::set, unused -> {});
+
+        var chunkHandler = captureChunkHandler(clientResponse);
+        chunkHandler.handle(Buffer.buffer("chunk-1"));
+        chunkHandler.handle(Buffer.buffer("chunk-2"));
+
+        capturedResponse.get().bodyHandler(delivered -> deliveredBody.append(delivered.toString()));
+        chunkHandler.handle(Buffer.buffer("chunk-3"));
+
+        assertThat(deliveredBody.toString()).isEqualTo("chunk-1chunk-2chunk-3");
+    }
+
     @Test
     public void should_discard_chunks_past_the_local_buffer_cap_when_no_downstream_body_handler_is_attached() {
         httpClientOptions.setKeepAlive(false);

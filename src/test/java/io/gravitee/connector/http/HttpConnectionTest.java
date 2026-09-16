@@ -19,6 +19,7 @@ import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -350,6 +351,27 @@ public class HttpConnectionTest {
         chunkHandler.handle(Buffer.buffer(chunk));
 
         assertThat(deliveredBytes.get()).isEqualTo(LOCAL_UPSTREAM_BUFFER_CAP + chunk.length);
+    }
+
+    @Test
+    public void should_discard_chunks_without_failing_when_no_downstream_body_handler_is_registered_on_a_keep_alive_endpoint() {
+        httpClientOptions.setKeepAlive(true);
+        var deliveredBody = new StringBuilder();
+        var capturedResponse = new AtomicReference<Response>();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, capturedResponse::set, unused -> {});
+
+        var chunkHandler = captureChunkHandler(clientResponse);
+        assertThatNoException().isThrownBy(() -> {
+            chunkHandler.handle(Buffer.buffer("dropped-1"));
+            chunkHandler.handle(Buffer.buffer("dropped-2"));
+        });
+
+        capturedResponse.get().bodyHandler(delivered -> deliveredBody.append(delivered.toString()));
+        chunkHandler.handle(Buffer.buffer("delivered"));
+
+        assertThat(deliveredBody.toString()).isEqualTo("delivered");
     }
 
     static Stream<Arguments> failuresLeavingNothingToDrain() {

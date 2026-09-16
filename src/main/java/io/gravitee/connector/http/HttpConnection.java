@@ -35,16 +35,21 @@ import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
+import io.vertx.core.Context;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.*;
 import io.vertx.core.internal.buffer.BufferInternal;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +63,30 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private static final Set<CharSequence> HOP_HEADERS;
     private static final String SERVER_NULL_PATTERN = " for server null";
+
+    // A same-context runOnContext() tick runs before Netty's event loop gets back to polling
+    // the socket, so it never actually observes the read that resume() re-arms - confirmed via
+    // a live repro where 100% of drains that ever ran concluded "quiet" after ticks used=1,
+    // 1-7ms before the real remaining bytes arrived. A short real-time wait is required instead.
+    private static final long CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS = 15;
+
+    // Bounds how many such checks a closed, non-keep-alive response is allowed to keep
+    // draining newly-arriving chunks before the exchange is finalized regardless - protects
+    // against waiting indefinitely if chunks kept arriving forever. The loop already exits
+    // as soon as one check sees nothing new, so raising this cap only extends the worst-case
+    // ceiling for a slower/more contended tail - it adds no latency to the common case, which
+    // in live testing always resolved within 1-4 checks.
+    private static final int CLOSED_RESPONSE_DRAIN_MAX_CHECKS = 50;
+
+    // Endpoints without keep-alive skip the initial response.pause() below (see
+    // handleUpstreamResponse) because pausing disables Netty's socket-level autoRead, and if the
+    // backend closes the connection while paused, whatever is still sitting in the kernel receive
+    // buffer is lost for good. Chunks that arrive before the downstream body handler is attached
+    // are buffered here instead of discarded, up to this size; past it, further chunks are
+    // discarded and logged once instead of buffered without bound, since pausing on overflow
+    // would need the downstream to resume us and nothing guarantees it will once we never told
+    // it we were paused in the first place.
+    private static final int LOCAL_UPSTREAM_BUFFER_CAP = 16 * 1024;
 
     static {
         Set<CharSequence> hopHeaders = new HashSet<>();
@@ -83,7 +112,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private boolean transmitted = false;
     private boolean headersWritten = false;
     private boolean content = false;
+    private boolean missingBodyHandlerLogged = false;
     private String targetServer;
+    private final Deque<byte[]> bufferedUpstreamChunks = new ArrayDeque<>();
+    private int bufferedUpstreamBytes = 0;
+    private boolean bufferThresholdExceededLogged = false;
+    private boolean requestOneChunkAtATime;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -255,14 +289,50 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             response.cancelHandler(tracker);
 
-            // Copy body content
-            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
+            // Endpoints without keep-alive request one chunk at a time (see below) instead of
+            // waiting for the downstream to call resume() itself: that wait is what leaves demand
+            // at zero long enough for Vert.x's internal queue to back up past its threshold and
+            // disable Netty's socket-level autoRead - and if the backend then closes the
+            // connection, whatever is still sitting in the kernel receive buffer is lost for good.
+            // A steady one-at-a-time demand keeps that queue from ever backing up that far, without
+            // ever granting the unbounded demand that let every concurrent connection's reads
+            // compete unthrottled for the same event-loop threads.
+            //
+            // This mechanism is HTTP/1.x-specific: a paused HTTP/2 stream (VertxHttp2Stream.doPause())
+            // only pauses that stream's own queue and never touches the shared connection's
+            // socket-level autoRead, since one HTTP/2 connection multiplexes many streams. So an
+            // HTTP/2 endpoint - even one explicitly configured with keep-alive off - keeps the
+            // original behavior instead of taking a pacing change it has no bug to be fixed by.
+            // Gated positively on HTTP/1.x rather than negatively on "not HTTP/2", so a future
+            // multiplexed protocol added to HttpVersion defaults to the original behavior too.
+            boolean isHttp1 = httpClientRequest.version() == HttpVersion.HTTP_1_0 || httpClientRequest.version() == HttpVersion.HTTP_1_1;
+            requestOneChunkAtATime = !endpoint.getHttpClientOptions().isKeepAlive() && isHttp1;
+
+            // Tracks whether a chunk was delivered since the last drain check below, so a
+            // connection-close can wait out re-reads still in flight (e.g. autoRead being
+            // re-armed by resume()) instead of ending before they land.
+            AtomicBoolean chunkReceivedSinceLastCheck = new AtomicBoolean(false);
+
+            // Copy body content. Kept as two fully separate registrations rather than one
+            // handler with an inline check, so the keep-alive (legacy) path is verifiable by
+            // reading the else-branch alone, with nothing from the one-chunk-at-a-time mode
+            // mixed into it.
+            if (requestOneChunkAtATime) {
+                clientResponse.handler(event -> {
+                    chunkReceivedSinceLastCheck.set(true);
+                    deliverUpstreamChunk(event.getBytes());
+                    clientResponse.fetch(1);
+                });
+                clientResponse.fetch(1);
+            } else {
+                clientResponse.handler(event -> {
+                    chunkReceivedSinceLastCheck.set(true);
+                    deliverUpstreamChunk(event.getBytes());
+                });
+            }
 
             // Signal end of the response
-            clientResponse.endHandler(event -> {
-                response.endHandler().handle(null);
-                tracker.handle(null);
-            });
+            clientResponse.endHandler(event -> endUpstreamResponse(tracker));
 
             clientResponse.exceptionHandler(throwable -> {
                 LOGGER.error(
@@ -272,11 +342,24 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     throwable.getMessage()
                 );
 
-                if (response.endHandler() != null) {
-                    response.endHandler().handle(null);
+                var vertxContext = Vertx.currentContext();
+                if (throwable instanceof HttpClosedException && !isCanceled() && vertxContext != null) {
+                    // Bytes already received before the close may still be queued in the paused
+                    // read-stream, or still being read off the socket as resume() re-arms it. A
+                    // same-context tick isn't enough: it runs before the event loop gets back to
+                    // polling the socket, so wait a short real delay instead, repeating while new
+                    // chunks keep arriving, before signalling the end of the exchange.
+                    response.resume();
+                    awaitDrainQuiescence(
+                        vertxContext,
+                        clientResponse,
+                        chunkReceivedSinceLastCheck,
+                        tracker,
+                        CLOSED_RESPONSE_DRAIN_MAX_CHECKS
+                    );
+                } else {
+                    endUpstreamResponseAfterClose(clientResponse, tracker);
                 }
-
-                tracker.handle(null);
             });
 
             clientResponse.customFrameHandler(frame ->
@@ -294,8 +377,144 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         return response;
     }
 
+    private void deliverUpstreamChunk(byte[] chunkBytes) {
+        if (requestOneChunkAtATime) {
+            deliverUpstreamChunkWithLocalBuffering(chunkBytes);
+        } else {
+            deliverUpstreamChunkForKeepAliveEndpoint(chunkBytes);
+        }
+    }
+
+    private void deliverUpstreamChunkForKeepAliveEndpoint(byte[] chunkBytes) {
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            bodyHandler.handle(Buffer.buffer(chunkBytes));
+        } else {
+            logMissingBodyHandlerOnce();
+        }
+    }
+
+    private void deliverUpstreamChunkWithLocalBuffering(byte[] chunkBytes) {
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            flushBufferedUpstreamChunks(bodyHandler);
+            bodyHandler.handle(Buffer.buffer(chunkBytes));
+        } else {
+            bufferUpstreamChunk(chunkBytes);
+        }
+    }
+
+    private void bufferUpstreamChunk(byte[] chunkBytes) {
+        if (bufferedUpstreamBytes >= LOCAL_UPSTREAM_BUFFER_CAP) {
+            if (!bufferThresholdExceededLogged) {
+                bufferThresholdExceededLogged = true;
+                LOGGER.warn(
+                    "Discarding upstream response body for request {} {} - exceeded {} bytes buffered locally while waiting for the downstream body handler to be attached",
+                    httpClientRequest.getMethod(),
+                    httpClientRequest.absoluteURI(),
+                    LOCAL_UPSTREAM_BUFFER_CAP
+                );
+            }
+            return;
+        }
+
+        bufferedUpstreamChunks.add(chunkBytes);
+        bufferedUpstreamBytes += chunkBytes.length;
+    }
+
+    private void flushBufferedUpstreamChunks(Handler<Buffer> bodyHandler) {
+        if (bufferedUpstreamChunks.isEmpty()) {
+            return;
+        }
+
+        byte[] chunk;
+        while ((chunk = bufferedUpstreamChunks.poll()) != null) {
+            bodyHandler.handle(Buffer.buffer(chunk));
+        }
+        bufferedUpstreamBytes = 0;
+    }
+
+    private void logMissingBodyHandlerOnce() {
+        if (!missingBodyHandlerLogged) {
+            missingBodyHandlerLogged = true;
+            LOGGER.warn(
+                "Discarding upstream response body for request {} {} - no downstream body handler is registered",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
+        }
+    }
+
+    private void logDrainCheckBudgetExhausted() {
+        LOGGER.warn(
+            "Ending upstream response for request {} {} after exhausting {} drain checks while chunks were still arriving - the response body may be truncated",
+            httpClientRequest.getMethod(),
+            httpClientRequest.absoluteURI(),
+            CLOSED_RESPONSE_DRAIN_MAX_CHECKS
+        );
+    }
+
+    private void detachUpstreamStream(HttpClientResponse clientResponse) {
+        clientResponse.handler(null);
+        response.pause();
+    }
+
+    private void endUpstreamResponseAfterClose(HttpClientResponse clientResponse, Handler<Void> tracker) {
+        detachUpstreamStream(clientResponse);
+        endUpstreamResponse(tracker);
+    }
+
+    private void endUpstreamResponse(Handler<Void> tracker) {
+        // cancel() already released the tracker through the connection-level cancelHandler, so
+        // finalizing again here would decrement the in-flight request counter a second time.
+        if (isCanceled()) {
+            return;
+        }
+
+        if (requestOneChunkAtATime) {
+            Handler<Buffer> bodyHandler = response.bodyHandler();
+            if (bodyHandler != null) {
+                flushBufferedUpstreamChunks(bodyHandler);
+            }
+        }
+
+        if (response.endHandler() != null) {
+            response.endHandler().handle(null);
+        }
+
+        tracker.handle(null);
+    }
+
+    private void awaitDrainQuiescence(
+        Context vertxContext,
+        HttpClientResponse clientResponse,
+        AtomicBoolean chunkReceivedSinceLastCheck,
+        Handler<Void> tracker,
+        int remainingChecks
+    ) {
+        vertxContext
+            .owner()
+            .setTimer(CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS, timerId -> {
+                boolean receivedSinceLastCheck = chunkReceivedSinceLastCheck.getAndSet(false);
+                if (isCanceled() || !receivedSinceLastCheck) {
+                    endUpstreamResponseAfterClose(clientResponse, tracker);
+                } else if (remainingChecks > 0) {
+                    awaitDrainQuiescence(vertxContext, clientResponse, chunkReceivedSinceLastCheck, tracker, remainingChecks - 1);
+                } else {
+                    logDrainCheckBudgetExhausted();
+                    endUpstreamResponseAfterClose(clientResponse, tracker);
+                }
+            });
+    }
+
     @Override
     public Connection cancel() {
+        // the gateway can cancel an already-canceled connection (a downstream cancel followed by the
+        // SSE request.closeHandler), and re-firing cancelHandler would release the in-flight tracker twice.
+        if (isCanceled()) {
+            return this;
+        }
+
         this.canceled = true;
         if (this.httpClientRequest != null) {
             this.httpClientRequest.reset();

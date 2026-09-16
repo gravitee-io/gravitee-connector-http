@@ -17,16 +17,23 @@ package io.gravitee.connector.http;
 
 import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.gravitee.common.component.Lifecycle;
 import io.gravitee.common.http.HttpMethod;
+import io.gravitee.connector.api.Response;
 import io.gravitee.connector.http.endpoint.HttpClientOptions;
 import io.gravitee.connector.http.endpoint.HttpEndpoint;
 import io.gravitee.connector.http.stub.DummyHttpClientRequest;
 import io.gravitee.gateway.api.ExecutionContext;
+import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
@@ -38,18 +45,33 @@ import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpClientResponse;
+import io.vertx.core.http.HttpClosedException;
+import io.vertx.core.http.HttpVersion;
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -70,6 +92,13 @@ public class HttpConnectionTest {
     public static final String TRACEPARENT_HEADER = "traceparent";
     public static final String TRACEPARENT_HEADER_VALUE = "traceparent-value";
     protected static final String BROTLI = "br";
+
+    private static final int CLOSED_RESPONSE_DRAIN_MAX_CHECKS = 50;
+    private static final long CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS = 15;
+    private static final long CLOSED_RESPONSE_DRAIN_CAP_MS = CLOSED_RESPONSE_DRAIN_MAX_CHECKS * CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS;
+    private static final long UPSTREAM_CHUNK_FEED_INTERVAL_MS = 5;
+    private static final long EXCHANGE_TIMEOUT_SECONDS = 10;
+    private static final int LOCAL_UPSTREAM_BUFFER_CAP = 16 * 1024;
 
     private HttpConnection<HttpResponse> cut;
 
@@ -123,6 +152,23 @@ public class HttpConnectionTest {
         httpClientRequest.connection().goAway(204, 1, Buffer.buffer("💥 Connection error"));
 
         assertThat(requestMetrics.getMessage()).isEqualTo("💥 Connection error");
+    }
+
+    @Test
+    public void should_notify_tracker_once_when_connection_is_canceled() {
+        final AtomicInteger trackerCalls = new AtomicInteger();
+
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> trackerCalls.incrementAndGet());
+
+        assertThat(trackerCalls.get()).isEqualTo(0);
+
+        cut.cancel();
+
+        assertThat(trackerCalls.get()).isEqualTo(1);
+
+        cut.cancel();
+
+        assertThat(trackerCalls.get()).isEqualTo(1);
     }
 
     @Test
@@ -249,6 +295,247 @@ public class HttpConnectionTest {
         assertThat(requestMetrics.getMessage()).isEqualTo(
             "The timeout period of 10000ms has been exceeded while executing GET /late for server example.com:" + port
         );
+    }
+
+    @Test
+    public void should_notify_the_response_end_handler_and_the_tracker_once_when_the_upstream_response_ends() {
+        var endHandlerCalls = new AtomicInteger();
+        var trackerCalls = new AtomicInteger();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, endHandlerCalls, trackerCalls);
+        captureEndHandler(clientResponse).handle(null);
+
+        assertThat(endHandlerCalls.get()).isEqualTo(1);
+        assertThat(trackerCalls.get()).isEqualTo(1);
+    }
+
+    @Test
+    public void should_not_request_chunks_one_at_a_time_for_a_non_keep_alive_http2_endpoint() {
+        httpClientOptions.setKeepAlive(false);
+        when(httpClientRequest.version()).thenReturn(HttpVersion.HTTP_2);
+
+        var deliveredBody = new StringBuilder();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(
+            clientResponse,
+            response -> response.bodyHandler(chunk -> deliveredBody.append(chunk.toString())),
+            unused -> {}
+        );
+
+        captureChunkHandler(clientResponse).handle(Buffer.buffer("chunk"));
+
+        assertThat(deliveredBody.toString()).isEqualTo("chunk");
+        verify(clientResponse, never()).fetch(anyLong());
+    }
+
+    @Test
+    public void should_discard_chunks_past_the_local_buffer_cap_when_no_downstream_body_handler_is_attached() {
+        httpClientOptions.setKeepAlive(false);
+        when(httpClientRequest.version()).thenReturn(HttpVersion.HTTP_1_1);
+        var deliveredBytes = new AtomicInteger();
+        var capturedResponse = new AtomicReference<Response>();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, capturedResponse::set, unused -> {});
+
+        var chunkHandler = captureChunkHandler(clientResponse);
+        byte[] chunk = new byte[1024];
+        for (int i = 0; i < LOCAL_UPSTREAM_BUFFER_CAP / chunk.length + 4; i++) {
+            chunkHandler.handle(Buffer.buffer(chunk));
+        }
+
+        capturedResponse.get().bodyHandler(delivered -> deliveredBytes.addAndGet(delivered.length()));
+        chunkHandler.handle(Buffer.buffer(chunk));
+
+        assertThat(deliveredBytes.get()).isEqualTo(LOCAL_UPSTREAM_BUFFER_CAP + chunk.length);
+    }
+
+    static Stream<Arguments> failuresLeavingNothingToDrain() {
+        return Stream.of(
+            Arguments.of("unparsable upstream response framing", new RuntimeException("unparsable upstream response framing")),
+            Arguments.of("connection closed outside a vertx context", new HttpClosedException("connection was closed"))
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("failuresLeavingNothingToDrain")
+    public void should_end_the_exchange_without_waiting_for_a_drain_when_the_upstream_response_fails(
+        String failure,
+        Throwable upstreamFailure
+    ) {
+        var endHandlerCalls = new AtomicInteger();
+        var trackerCalls = new AtomicInteger();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, endHandlerCalls, trackerCalls);
+        captureExceptionHandler(clientResponse).handle(upstreamFailure);
+
+        assertThat(endHandlerCalls.get()).isEqualTo(1);
+        assertThat(trackerCalls.get()).isEqualTo(1);
+        verify(clientResponse, never()).resume();
+    }
+
+    static Stream<Arguments> terminationsAfterCancel() {
+        return Stream.of(
+            Arguments.of(
+                "upstream response ends",
+                (Consumer<HttpClientResponse>) clientResponse -> captureEndHandler(clientResponse).handle(null)
+            ),
+            Arguments.of(
+                "upstream connection closes",
+                (Consumer<HttpClientResponse>) clientResponse ->
+                    captureExceptionHandler(clientResponse).handle(new HttpClosedException("connection was closed"))
+            )
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("terminationsAfterCancel")
+    public void should_notify_the_tracker_once_when_the_exchange_terminates_after_the_connection_was_canceled(
+        String termination,
+        Consumer<HttpClientResponse> terminate
+    ) {
+        var endHandlerCalls = new AtomicInteger();
+        var trackerCalls = new AtomicInteger();
+        var clientResponse = givenMockedUpstreamResponse();
+
+        whenUpstreamResponseIsHandled(clientResponse, endHandlerCalls, trackerCalls);
+        cut.cancel();
+        terminate.accept(clientResponse);
+
+        assertThat(trackerCalls.get()).isEqualTo(1);
+        assertThat(endHandlerCalls.get()).isEqualTo(0);
+    }
+
+    @Nested
+    class WhenTheUpstreamConnectionClosesInsideAVertxContext {
+
+        private Vertx vertx;
+
+        @BeforeEach
+        public void startVertx() {
+            vertx = Vertx.vertx();
+        }
+
+        @AfterEach
+        public void closeVertx() throws Exception {
+            vertx.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+        }
+
+        @Test
+        public void should_end_the_exchange_once_after_the_drain_check_cap_is_exhausted() throws Exception {
+            var endHandlerCalls = new AtomicInteger();
+            var trackerCalls = new AtomicInteger();
+            var deliveredChunks = new AtomicInteger();
+            var deliveredChunksWhenEnded = new AtomicInteger();
+            var chunkFeedTimerId = new AtomicLong();
+            CompletableFuture<Long> endedAt = new CompletableFuture<>();
+            var clientResponse = givenMockedUpstreamResponse();
+
+            whenUpstreamResponseIsHandled(
+                clientResponse,
+                response -> {
+                    response.bodyHandler(chunk -> deliveredChunks.incrementAndGet());
+                    response.endHandler(end -> {
+                        endHandlerCalls.incrementAndGet();
+                        deliveredChunksWhenEnded.set(deliveredChunks.get());
+                    });
+                },
+                unused -> {
+                    trackerCalls.incrementAndGet();
+                    endedAt.complete(System.currentTimeMillis());
+                }
+            );
+
+            var chunkHandler = captureChunkHandler(clientResponse);
+            var exceptionHandler = captureExceptionHandler(clientResponse);
+
+            long startedAt = System.currentTimeMillis();
+            vertx.runOnContext(unused -> {
+                chunkFeedTimerId.set(
+                    vertx.setPeriodic(UPSTREAM_CHUNK_FEED_INTERVAL_MS, timerId -> chunkHandler.handle(Buffer.buffer("chunk")))
+                );
+                exceptionHandler.handle(new HttpClosedException("connection was closed"));
+            });
+
+            long drainDuration = endedAt.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS) - startedAt;
+            vertx.cancelTimer(chunkFeedTimerId.get());
+
+            assertThat(drainDuration).isGreaterThanOrEqualTo(CLOSED_RESPONSE_DRAIN_CAP_MS);
+            assertThat(deliveredChunksWhenEnded.get()).isGreaterThanOrEqualTo(CLOSED_RESPONSE_DRAIN_MAX_CHECKS);
+            assertThat(endHandlerCalls.get()).isEqualTo(1);
+            assertThat(trackerCalls.get()).isEqualTo(1);
+        }
+
+        @Test
+        public void should_end_the_exchange_without_draining_when_the_connection_was_already_canceled() throws Exception {
+            var endHandlerCalls = new AtomicInteger();
+            var trackerCalls = new AtomicInteger();
+            CompletableFuture<Void> closeHandled = new CompletableFuture<>();
+            var clientResponse = givenMockedUpstreamResponse();
+
+            whenUpstreamResponseIsHandled(clientResponse, endHandlerCalls, trackerCalls);
+            var exceptionHandler = captureExceptionHandler(clientResponse);
+            cut.cancel();
+
+            vertx.runOnContext(unused -> {
+                exceptionHandler.handle(new HttpClosedException("connection was closed"));
+                closeHandled.complete(null);
+            });
+            closeHandled.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+            assertThat(trackerCalls.get()).isEqualTo(1);
+            assertThat(endHandlerCalls.get()).isEqualTo(0);
+            verify(clientResponse, never()).resume();
+        }
+    }
+
+    private HttpClientResponse givenMockedUpstreamResponse() {
+        var clientResponse = mock(HttpClientResponse.class);
+        when(clientResponse.headers()).thenReturn(io.vertx.core.http.HttpHeaders.headers());
+        return clientResponse;
+    }
+
+    private void whenUpstreamResponseIsHandled(
+        HttpClientResponse clientResponse,
+        AtomicInteger endHandlerCalls,
+        AtomicInteger trackerCalls
+    ) {
+        whenUpstreamResponseIsHandled(
+            clientResponse,
+            response -> response.endHandler(end -> endHandlerCalls.incrementAndGet()),
+            unused -> trackerCalls.incrementAndGet()
+        );
+    }
+
+    private void whenUpstreamResponseIsHandled(
+        HttpClientResponse clientResponse,
+        Consumer<Response> downstreamHandlers,
+        Handler<Void> tracker
+    ) {
+        cut.responseHandler(downstreamHandlers::accept);
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, tracker);
+        cut.handleUpstreamResponse(context, Future.succeededFuture(clientResponse), tracker, null);
+    }
+
+    private static io.vertx.core.Handler<Void> captureEndHandler(HttpClientResponse clientResponse) {
+        ArgumentCaptor<io.vertx.core.Handler<Void>> endHandler = ArgumentCaptor.captor();
+        verify(clientResponse).endHandler(endHandler.capture());
+        return endHandler.getValue();
+    }
+
+    private static io.vertx.core.Handler<Buffer> captureChunkHandler(HttpClientResponse clientResponse) {
+        ArgumentCaptor<io.vertx.core.Handler<Buffer>> chunkHandler = ArgumentCaptor.captor();
+        verify(clientResponse).handler(chunkHandler.capture());
+        return chunkHandler.getValue();
+    }
+
+    private static io.vertx.core.Handler<Throwable> captureExceptionHandler(HttpClientResponse clientResponse) {
+        ArgumentCaptor<io.vertx.core.Handler<Throwable>> exceptionHandler = ArgumentCaptor.captor();
+        verify(clientResponse).exceptionHandler(exceptionHandler.capture());
+        return exceptionHandler.getValue();
     }
 
     private int getAvailablePort() {

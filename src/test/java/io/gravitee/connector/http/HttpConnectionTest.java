@@ -94,10 +94,13 @@ public class HttpConnectionTest {
     public static final String TRACEPARENT_HEADER_VALUE = "traceparent-value";
     protected static final String BROTLI = "br";
 
-    private static final int CLOSED_RESPONSE_DRAIN_MAX_CHECKS = 50;
-    private static final long CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS = 15;
-    private static final long CLOSED_RESPONSE_DRAIN_CAP_MS = CLOSED_RESPONSE_DRAIN_MAX_CHECKS * CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS;
+    private static final long CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS = 60;
+    private static final long CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS = 1_000;
     private static final long UPSTREAM_CHUNK_FEED_INTERVAL_MS = 5;
+    // Longer than the drain's 15ms sampling rate - so a sample is guaranteed to land in a gap
+    // between two chunks - but well inside the quiet threshold, which is what must keep the drain
+    // alive across that gap.
+    private static final long GAPPED_UPSTREAM_CHUNK_FEED_INTERVAL_MS = 25;
     private static final long EXCHANGE_TIMEOUT_SECONDS = 10;
     private static final int LOCAL_UPSTREAM_BUFFER_CAP = 16 * 1024;
 
@@ -476,7 +479,7 @@ public class HttpConnectionTest {
         }
 
         @Test
-        public void should_end_the_exchange_once_after_the_drain_check_cap_is_exhausted() throws Exception {
+        public void should_end_the_exchange_once_after_the_drain_budget_is_exhausted() throws Exception {
             var endHandlerCalls = new AtomicInteger();
             var trackerCalls = new AtomicInteger();
             var deliveredChunks = new AtomicInteger();
@@ -514,10 +517,57 @@ public class HttpConnectionTest {
             long drainDuration = endedAt.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS) - startedAt;
             vertx.cancelTimer(chunkFeedTimerId.get());
 
-            assertThat(drainDuration).isGreaterThanOrEqualTo(CLOSED_RESPONSE_DRAIN_CAP_MS);
-            assertThat(deliveredChunksWhenEnded.get()).isGreaterThanOrEqualTo(CLOSED_RESPONSE_DRAIN_MAX_CHECKS);
+            assertThat(drainDuration).isGreaterThanOrEqualTo(CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS);
+            // A quarter of the chunks the feed nominally produces over the budget, so the assertion
+            // proves the drain kept delivering for the whole budget without being timing-sensitive.
+            assertThat(deliveredChunksWhenEnded.get()).isGreaterThanOrEqualTo(
+                (int) (CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS / UPSTREAM_CHUNK_FEED_INTERVAL_MS / 4)
+            );
             assertThat(endHandlerCalls.get()).isEqualTo(1);
             assertThat(trackerCalls.get()).isEqualTo(1);
+        }
+
+        @Test
+        public void should_deliver_every_chunk_when_arrivals_are_gapped_wider_than_the_drain_sampling_rate() throws Exception {
+            int chunksToFeed = 5;
+            var deliveredChunks = new AtomicInteger();
+            var deliveredChunksWhenEnded = new AtomicInteger();
+            var endHandlerCalls = new AtomicInteger();
+            var remainingChunks = new AtomicInteger(chunksToFeed);
+            CompletableFuture<Void> ended = new CompletableFuture<>();
+            var clientResponse = givenMockedUpstreamResponse();
+
+            whenUpstreamResponseIsHandled(
+                clientResponse,
+                response -> {
+                    response.bodyHandler(chunk -> deliveredChunks.incrementAndGet());
+                    response.endHandler(end -> {
+                        endHandlerCalls.incrementAndGet();
+                        deliveredChunksWhenEnded.set(deliveredChunks.get());
+                        ended.complete(null);
+                    });
+                },
+                unused -> {}
+            );
+
+            var chunkHandler = captureChunkHandler(clientResponse);
+            var exceptionHandler = captureExceptionHandler(clientResponse);
+
+            vertx.runOnContext(unused -> {
+                vertx.setPeriodic(GAPPED_UPSTREAM_CHUNK_FEED_INTERVAL_MS, timerId -> {
+                    if (remainingChunks.getAndDecrement() > 0) {
+                        chunkHandler.handle(Buffer.buffer("chunk"));
+                    } else {
+                        vertx.cancelTimer(timerId);
+                    }
+                });
+                exceptionHandler.handle(new HttpClosedException("connection was closed"));
+            });
+
+            ended.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+            assertThat(deliveredChunksWhenEnded.get()).isEqualTo(chunksToFeed);
+            assertThat(endHandlerCalls.get()).isEqualTo(1);
         }
 
         @Test

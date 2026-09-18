@@ -48,8 +48,9 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,28 +65,30 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private static final Set<CharSequence> HOP_HEADERS;
     private static final String SERVER_NULL_PATTERN = " for server null";
 
-    // A same-context runOnContext() tick runs before Netty's event loop gets back to polling
-    // the socket, so it never actually observes the read that resume() re-arms - confirmed via
-    // a live repro where 100% of drains that ever ran concluded "quiet" after ticks used=1,
-    // 1-7ms before the real remaining bytes arrived. A short real-time wait is required instead.
+    // How often the drain samples for new arrivals. Only a sampling rate: what ends the drain is
+    // the quiet threshold below, so this can be tightened or loosened without changing the point
+    // at which the exchange is considered quiescent.
     private static final long CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS = 15;
 
-    // Bounds how many such checks a closed, non-keep-alive response is allowed to keep
-    // draining newly-arriving chunks before the exchange is finalized regardless - protects
-    // against waiting indefinitely if chunks kept arriving forever. The loop already exits
-    // as soon as one check sees nothing new, so raising this cap only extends the worst-case
-    // ceiling for a slower/more contended tail - it adds no latency to the common case, which
-    // in live testing always resolved within 1-4 checks.
-    private static final int CLOSED_RESPONSE_DRAIN_MAX_CHECKS = 50;
+    // Real elapsed time since the last chunk actually arrived before the response is considered
+    // quiescent. Deliberately measured against the last arrival rather than against "did a chunk
+    // arrive since the previous sample": under event-loop contention a sample lands in a window
+    // where the next chunk is only milliseconds away, and treating that single miss as quiescence
+    // finalized the exchange and silently dropped the rest of the body (APIM-15055, reproduced at
+    // 40 concurrent clients). Sized at several multiples of the sampling rate so ordinary
+    // scheduling jitter cannot trip it.
+    private static final long CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS = 60;
 
-    // Endpoints without keep-alive skip the initial response.pause() below (see
-    // handleUpstreamResponse) because pausing disables Netty's socket-level autoRead, and if the
-    // backend closes the connection while paused, whatever is still sitting in the kernel receive
-    // buffer is lost for good. Chunks that arrive before the downstream body handler is attached
-    // are buffered here instead of discarded, up to this size; past it, further chunks are
-    // discarded and logged once instead of buffered without bound, since pausing on overflow
-    // would need the downstream to resume us and nothing guarantees it will once we never told
-    // it we were paused in the first place.
+    // Absolute ceiling on the drain, protecting against a backend that never stops sending.
+    // Expressed as real elapsed time rather than a number of samples because a contended event
+    // loop stretches each sample by an unbounded amount, so a sample count places no real bound
+    // on how long the exchange can be held open.
+    private static final long CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS = 1_000;
+
+    // Chunks that arrive before the downstream body handler is attached are buffered here instead
+    // of discarded, up to this size; past it, further chunks are discarded and logged once instead
+    // of buffered without bound, since pausing on overflow would need the downstream to resume us
+    // and nothing guarantees it will once we never told it we were paused in the first place.
     private static final int LOCAL_UPSTREAM_BUFFER_CAP = 16 * 1024;
 
     static {
@@ -321,10 +324,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             requestOneChunkAtATime = isKeepAliveDisabled() && isHttp1;
             bufferChunksUntilBodyHandlerAttached = isKeepAliveDisabled();
 
-            // Tracks whether a chunk was delivered since the last drain check below, so a
-            // connection-close can wait out re-reads still in flight (e.g. autoRead being
-            // re-armed by resume()) instead of ending before they land.
-            AtomicBoolean chunkReceivedSinceLastCheck = new AtomicBoolean(false);
+            // Tracks when upstream activity was last observed, so a connection-close can wait out
+            // re-reads still in flight (e.g. autoRead being re-armed by resume()) instead of ending
+            // before they land. Seeded with the moment the response headers arrived, so a close on
+            // a response that never produced a chunk is still given the same quiet period.
+            AtomicLong lastChunkReceivedAtNanos = new AtomicLong(System.nanoTime());
 
             // Copy body content. Kept as two fully separate registrations rather than one
             // handler with an inline check, so the keep-alive (legacy) path is verifiable by
@@ -332,14 +336,14 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             // mixed into it.
             if (requestOneChunkAtATime) {
                 clientResponse.handler(event -> {
-                    chunkReceivedSinceLastCheck.set(true);
+                    lastChunkReceivedAtNanos.set(System.nanoTime());
                     deliverUpstreamChunk(event.getBytes());
                     clientResponse.fetch(1);
                 });
                 clientResponse.fetch(1);
             } else {
                 clientResponse.handler(event -> {
-                    chunkReceivedSinceLastCheck.set(true);
+                    lastChunkReceivedAtNanos.set(System.nanoTime());
                     deliverUpstreamChunk(event.getBytes());
                 });
             }
@@ -350,18 +354,19 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             clientResponse.exceptionHandler(throwable -> {
                 var vertxContext = Vertx.currentContext();
                 if (throwable instanceof HttpClosedException && !isCanceled() && vertxContext != null) {
-                    // Bytes already received before the close may still be queued in the paused
-                    // read-stream, or still being read off the socket as resume() re-arms it. A
-                    // same-context tick isn't enough: it runs before the event loop gets back to
-                    // polling the socket, so wait a short real delay instead, repeating while new
-                    // chunks keep arriving, before signalling the end of the exchange.
+                    // TCP orders the FIN after all data, and the kernel reports EOF only once the
+                    // receive buffer is drained, so every byte the backend sent has necessarily
+                    // been read into userspace by the time this fires - it is queued in the paused
+                    // read-stream, waiting on demand. Draining it is purely a matter of staying
+                    // alive long enough for it to flow through, so wait for a real quiet period
+                    // before signalling the end of the exchange.
                     response.resume();
                     awaitDrainQuiescence(
                         vertxContext,
                         clientResponse,
-                        chunkReceivedSinceLastCheck,
+                        lastChunkReceivedAtNanos,
                         tracker,
-                        CLOSED_RESPONSE_DRAIN_MAX_CHECKS
+                        System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS)
                     );
                 } else {
                     LOGGER.error(
@@ -461,12 +466,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
     }
 
-    private void logDrainCheckBudgetExhausted() {
+    private void logDrainBudgetExhausted() {
         LOGGER.warn(
-            "Ending upstream response for request {} {} after exhausting {} drain checks while chunks were still arriving - the response body may be truncated",
+            "Ending upstream response for request {} {} after draining for {}ms while chunks were still arriving - the response body may be truncated",
             httpClientRequest.getMethod(),
             httpClientRequest.absoluteURI(),
-            CLOSED_RESPONSE_DRAIN_MAX_CHECKS
+            CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS
         );
     }
 
@@ -504,20 +509,22 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private void awaitDrainQuiescence(
         Context vertxContext,
         HttpClientResponse clientResponse,
-        AtomicBoolean chunkReceivedSinceLastCheck,
+        AtomicLong lastChunkReceivedAtNanos,
         Handler<Void> tracker,
-        int remainingChecks
+        long drainDeadlineNanos
     ) {
         vertxContext
             .owner()
             .setTimer(CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS, timerId -> {
-                boolean receivedSinceLastCheck = chunkReceivedSinceLastCheck.getAndSet(false);
-                if (isCanceled() || !receivedSinceLastCheck) {
+                long now = System.nanoTime();
+                long quietForMs = TimeUnit.NANOSECONDS.toMillis(now - lastChunkReceivedAtNanos.get());
+
+                if (isCanceled() || quietForMs >= CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS) {
                     endUpstreamResponseAfterClose(clientResponse, tracker);
-                } else if (remainingChecks > 0) {
-                    awaitDrainQuiescence(vertxContext, clientResponse, chunkReceivedSinceLastCheck, tracker, remainingChecks - 1);
+                } else if (now - drainDeadlineNanos < 0) {
+                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker, drainDeadlineNanos);
                 } else {
-                    logDrainCheckBudgetExhausted();
+                    logDrainBudgetExhausted();
                     endUpstreamResponseAfterClose(clientResponse, tracker);
                 }
             });

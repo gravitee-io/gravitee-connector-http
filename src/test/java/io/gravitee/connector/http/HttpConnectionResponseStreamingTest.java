@@ -35,7 +35,9 @@ import io.vertx.core.http.HttpClient;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -276,6 +278,62 @@ public class HttpConnectionResponseStreamingTest {
         assertThat(trackerCalls.get()).isEqualTo(1);
         assertThat(receivedBody.toString()).isEqualTo(UPSTREAM_BODY);
         assertThat(unhandledFailure.get()).isNull();
+    }
+
+    @Test
+    public void should_wait_for_the_drain_deadline_instead_of_a_short_quiet_gap_when_content_length_is_declared_but_never_fully_delivered()
+        throws Exception {
+        HttpClientOptions options = new HttpClientOptions();
+        options.setKeepAlive(false);
+        when(endpoint.getHttpClientOptions()).thenReturn(options);
+
+        // One byte more than the backend will ever actually send: Netty can then never satisfy the
+        // declared length, so this deterministically forces the same close/exceptionHandler
+        // recovery path as respondThenCloseWithoutTerminatingChunk, but for Content-Length framing.
+        long declaredContentLength = UPSTREAM_BODY.length() + 1;
+        NetServer contentLengthUpstream = vertx
+            .createNetServer()
+            .connectHandler(socket ->
+                socket.handler(upstreamRequest -> {
+                    socket.write(
+                        Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + declaredContentLength + "\r\n\r\n" + BODY_FIRST_PART)
+                    );
+                    vertx.setTimer(UPSTREAM_TRICKLE_DELAY_MS, timer ->
+                        socket.write(Buffer.buffer(BODY_SECOND_PART)).onComplete(written -> socket.close())
+                    );
+                })
+            )
+            .listen(0)
+            .toCompletionStage()
+            .toCompletableFuture()
+            .get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+        try {
+            HttpConnection<HttpResponse> cut = new HttpConnection<>(endpoint, request);
+
+            var receivedBody = new StringBuilder();
+            CompletableFuture<String> bodyOnEnd = new CompletableFuture<>();
+            long start = System.nanoTime();
+            AtomicLong endedAfterMs = new AtomicLong();
+
+            cut.responseHandler(response -> {
+                response.bodyHandler(chunk -> receivedBody.append(chunk.toString()));
+                response.endHandler(end -> {
+                    endedAfterMs.set(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                    bodyOnEnd.complete(receivedBody.toString());
+                });
+            });
+
+            cut.connect(context, client, contentLengthUpstream.actualPort(), "localhost", "/", connected -> cut.end(), tracker -> {});
+
+            assertThat(bodyOnEnd.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS)).isEqualTo(UPSTREAM_BODY);
+            // The old quiet-gap heuristic (60ms of inactivity) would have ended this exchange almost
+            // immediately after the last chunk arrived. A declared Content-Length that is never fully
+            // satisfied must instead wait out the full drain deadline (1000ms) before giving up.
+            assertThat(endedAfterMs.get()).isGreaterThanOrEqualTo(900L);
+        } finally {
+            contentLengthUpstream.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+        }
     }
 
     private void awaitQuietPeriod() throws Exception {

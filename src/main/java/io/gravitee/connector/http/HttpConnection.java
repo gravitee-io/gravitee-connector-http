@@ -71,12 +71,13 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private static final long CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS = 15;
 
     // Real elapsed time since the last chunk actually arrived before the response is considered
-    // quiescent. Deliberately measured against the last arrival rather than against "did a chunk
-    // arrive since the previous sample": under event-loop contention a sample lands in a window
-    // where the next chunk is only milliseconds away, and treating that single miss as quiescence
-    // finalized the exchange and silently dropped the rest of the body (APIM-15055, reproduced at
-    // 40 concurrent clients). Sized at several multiples of the sampling rate so ordinary
-    // scheduling jitter cannot trip it.
+    // quiescent. Only a guess, and only used when the upstream framing gives us no better signal
+    // (no Content-Length, not chunked) - see hasKnownFraming(). Deliberately measured against the
+    // last arrival rather than against "did a chunk arrive since the previous sample": under
+    // event-loop contention a sample lands in a window where the next chunk is only milliseconds
+    // away, and treating that single miss as quiescence finalized the exchange and silently
+    // dropped the rest of the body (APIM-15055, reproduced at 40 concurrent clients). Sized at
+    // several multiples of the sampling rate so ordinary scheduling jitter cannot trip it.
     private static final long CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS = 60;
 
     // Absolute ceiling on the drain, protecting against a backend that never stops sending.
@@ -128,6 +129,17 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // multiplexed protocol just as it is of HTTP/1.x. Keep-alive endpoints retain the original
     // drop-and-log behavior.
     private boolean bufferChunksUntilBodyHandlerAttached;
+    // Declared upstream framing, captured when the response headers arrive. A response with
+    // either of these gives us a way to know for certain when the full body has arrived, instead
+    // of guessing from inactivity - see hasKnownFraming() and isUpstreamResponseFullyDelivered().
+    private long declaredContentLength = -1;
+    private boolean chunkedUpstreamResponse;
+    private long deliveredByteCount;
+    // Guards against ending the exchange twice: once the close-recovery path is waiting on
+    // awaitDrainQuiescence, Vert.x's own endHandler is still live and can still fire on its own
+    // (e.g. once it finishes decoding a chunked terminator that was already fully received), racing
+    // with our own completion check.
+    private boolean upstreamResponseEnded;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -287,6 +299,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             HttpClientResponse clientResponse = clientResponseFuture.result();
             ctx.getTracer().endWithResponse(requestSpan, new ObservableHttpClientResponse(clientResponse));
             response = createProxyResponse(clientResponse);
+            chunkedUpstreamResponse = isChunkedTransferEncoding(clientResponse);
+            declaredContentLength = chunkedUpstreamResponse ? -1 : parseDeclaredContentLength(clientResponse);
 
             if (isSse(request)) {
                 request.closeHandler(proxyConnectionClosed -> {
@@ -358,8 +372,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     // receive buffer is drained, so every byte the backend sent has necessarily
                     // been read into userspace by the time this fires - it is queued in the paused
                     // read-stream, waiting on demand. Draining it is purely a matter of staying
-                    // alive long enough for it to flow through, so wait for a real quiet period
-                    // before signalling the end of the exchange.
+                    // alive long enough for it to flow through, so wait until we know it has -
+                    // see awaitDrainQuiescence - before signalling the end of the exchange.
                     response.resume();
                     awaitDrainQuiescence(
                         vertxContext,
@@ -399,6 +413,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     private void deliverUpstreamChunk(byte[] chunkBytes) {
+        deliveredByteCount += chunkBytes.length;
         if (bufferChunksUntilBodyHandlerAttached) {
             deliverUpstreamChunkWithLocalBuffering(chunkBytes);
         } else {
@@ -488,9 +503,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     private void endUpstreamResponse(Handler<Void> tracker) {
         // cancel() already released the tracker through the connection-level cancelHandler, so
         // finalizing again here would decrement the in-flight request counter a second time.
-        if (isCanceled()) {
+        // upstreamResponseEnded guards the close-recovery race described on that field.
+        if (isCanceled() || upstreamResponseEnded) {
             return;
         }
+        upstreamResponseEnded = true;
 
         if (bufferChunksUntilBodyHandlerAttached) {
             Handler<Buffer> bodyHandler = response.bodyHandler();
@@ -516,18 +533,60 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         vertxContext
             .owner()
             .setTimer(CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS, timerId -> {
-                long now = System.nanoTime();
-                long quietForMs = TimeUnit.NANOSECONDS.toMillis(now - lastChunkReceivedAtNanos.get());
-
-                if (isCanceled() || quietForMs >= CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS) {
+                if (isCanceled() || isUpstreamResponseFullyDelivered()) {
                     endUpstreamResponseAfterClose(clientResponse, tracker);
-                } else if (now - drainDeadlineNanos < 0) {
-                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker, drainDeadlineNanos);
-                } else {
+                    return;
+                }
+
+                long now = System.nanoTime();
+                boolean drainDeadlineExpired = now - drainDeadlineNanos >= 0;
+
+                // A response with known framing (Content-Length or chunked) is only ever ended
+                // here by isUpstreamResponseFullyDelivered() above or by the deadline below: an
+                // inactivity guess can fire in a gap between two chunks that are both still to
+                // come, which is exactly how a declared-length response lost its tail (APIM-15055).
+                // Only a close-delimited response - no declared length, RFC 9112 §6.3 - has no
+                // signal other than that guess.
+                if (!hasKnownFraming()) {
+                    long quietForMs = TimeUnit.NANOSECONDS.toMillis(now - lastChunkReceivedAtNanos.get());
+                    if (quietForMs >= CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS) {
+                        endUpstreamResponseAfterClose(clientResponse, tracker);
+                        return;
+                    }
+                }
+
+                if (drainDeadlineExpired) {
                     logDrainBudgetExhausted();
                     endUpstreamResponseAfterClose(clientResponse, tracker);
+                } else {
+                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker, drainDeadlineNanos);
                 }
             });
+    }
+
+    private boolean hasKnownFraming() {
+        return chunkedUpstreamResponse || declaredContentLength >= 0;
+    }
+
+    private boolean isUpstreamResponseFullyDelivered() {
+        return declaredContentLength >= 0 && deliveredByteCount >= declaredContentLength;
+    }
+
+    private boolean isChunkedTransferEncoding(HttpClientResponse clientResponse) {
+        String transferEncoding = clientResponse.getHeader(HttpHeaderNames.TRANSFER_ENCODING);
+        return transferEncoding != null && transferEncoding.contains(HttpHeadersValues.TRANSFER_ENCODING_CHUNKED);
+    }
+
+    private long parseDeclaredContentLength(HttpClientResponse clientResponse) {
+        String contentLength = clientResponse.getHeader(HttpHeaderNames.CONTENT_LENGTH);
+        if (contentLength == null) {
+            return -1;
+        }
+        try {
+            return Long.parseLong(contentLength.trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     @Override

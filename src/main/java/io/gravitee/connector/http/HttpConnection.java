@@ -348,13 +348,6 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             clientResponse.endHandler(event -> endUpstreamResponse(tracker));
 
             clientResponse.exceptionHandler(throwable -> {
-                LOGGER.error(
-                    "Unexpected error while handling backend response for request {} {} - {}",
-                    httpClientRequest.getMethod(),
-                    httpClientRequest.absoluteURI(),
-                    throwable.getMessage()
-                );
-
                 var vertxContext = Vertx.currentContext();
                 if (throwable instanceof HttpClosedException && !isCanceled() && vertxContext != null) {
                     // Bytes already received before the close may still be queued in the paused
@@ -371,6 +364,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                         CLOSED_RESPONSE_DRAIN_MAX_CHECKS
                     );
                 } else {
+                    LOGGER.error(
+                        "Unexpected error while handling backend response for request {} {} - {}",
+                        httpClientRequest.getMethod(),
+                        httpClientRequest.absoluteURI(),
+                        throwable.getMessage()
+                    );
                     endUpstreamResponseAfterClose(clientResponse, tracker);
                 }
             });

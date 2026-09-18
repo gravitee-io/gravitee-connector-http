@@ -632,6 +632,16 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
         this.canceled = true;
         if (this.httpClientRequest != null) {
+            // Debug rather than warn because the gateway cancels routinely - a client that
+            // disconnects mid-download, a response already ended, a policy that interrupts the
+            // chain - so a louder level would spam production on ordinary traffic. Logged only
+            // here, since a cancel before the upstream request exists resets nothing and leaves no
+            // client mid-stream.
+            LOGGER.debug(
+                "Cancelling upstream request {} {} - the request is reset and the downstream stops receiving the response body",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
             this.httpClientRequest.reset();
         }
         if (cancelHandler != null) {

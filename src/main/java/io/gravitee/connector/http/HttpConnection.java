@@ -144,6 +144,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // (e.g. once it finishes decoding a chunked terminator that was already fully received), racing
     // with our own completion check.
     private boolean upstreamResponseEnded;
+    // Whether the downstream has been told the response ended. Kept apart from
+    // upstreamResponseEnded because the two can happen far apart: the upstream can complete before
+    // the downstream has attached any handler at all, and the body and the end signal it is owed
+    // then have to wait for that attach instead of being dropped on the floor (APIM-15055).
+    private boolean downstreamEndSignalled;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -303,6 +308,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             HttpClientResponse clientResponse = clientResponseFuture.result();
             ctx.getTracer().endWithResponse(requestSpan, new ObservableHttpClientResponse(clientResponse));
             response = createProxyResponse(clientResponse);
+            response.handlersAttachedHandler(attached -> completeDownstreamHandoff());
             chunkedUpstreamResponse = isChunkedTransferEncoding(clientResponse);
             declaredContentLength = chunkedUpstreamResponse ? -1 : parseDeclaredContentLength(clientResponse);
 
@@ -515,18 +521,29 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
         upstreamResponseEnded = true;
 
-        if (bufferChunksUntilBodyHandlerAttached) {
-            Handler<Buffer> bodyHandler = response.bodyHandler();
-            if (bodyHandler != null) {
-                flushBufferedUpstreamChunks(bodyHandler);
-            }
-        }
+        completeDownstreamHandoff();
 
-        if (response.endHandler() != null) {
-            response.endHandler().handle(null);
-        }
-
+        // Released even when the hand-off is still waiting on the downstream to attach: the tracker
+        // is the connector's own in-flight accounting, and the upstream exchange is over whether or
+        // not anyone downstream ever comes to collect the response.
         tracker.handle(null);
+    }
+
+    private void completeDownstreamHandoff() {
+        if (!upstreamResponseEnded || isCanceled() || downstreamEndSignalled) {
+            return;
+        }
+
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            flushBufferedUpstreamChunks(bodyHandler);
+        }
+
+        Handler<Void> endHandler = response.endHandler();
+        if (endHandler != null) {
+            downstreamEndSignalled = true;
+            endHandler.handle(null);
+        }
     }
 
     private void awaitDrainQuiescence(

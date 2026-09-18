@@ -32,6 +32,7 @@ import io.vertx.core.http.HttpClientResponse;
 public class HttpResponse extends AbstractResponse {
 
     private Handler<HttpFrame> frameHandler;
+    private Handler<Void> handlersAttachedHandler;
 
     private final HttpHeaders httpHeaders;
     private final HttpClientResponse httpClientResponse;
@@ -39,6 +40,32 @@ public class HttpResponse extends AbstractResponse {
     public HttpResponse(final HttpClientResponse httpClientResponse) {
         this.httpClientResponse = httpClientResponse;
         this.httpHeaders = new VertxHttpHeaders(this.httpClientResponse.headers());
+    }
+
+    public void handlersAttachedHandler(Handler<Void> handlersAttachedHandler) {
+        this.handlersAttachedHandler = handlersAttachedHandler;
+    }
+
+    @Override
+    public Response bodyHandler(Handler<Buffer> bodyHandler) {
+        super.bodyHandler(bodyHandler);
+        notifyHandlersAttached(bodyHandler);
+        return this;
+    }
+
+    @Override
+    public Response endHandler(Handler<Void> endHandler) {
+        super.endHandler(endHandler);
+        notifyHandlersAttached(endHandler);
+        return this;
+    }
+
+    // The connector defers the body flush and the end signal until this fires, so an upstream
+    // response that completes before the downstream attaches is handed over instead of dropped.
+    private void notifyHandlersAttached(Handler<?> attachedHandler) {
+        if (attachedHandler != null && handlersAttachedHandler != null) {
+            handlersAttachedHandler.handle(null);
+        }
     }
 
     @Override

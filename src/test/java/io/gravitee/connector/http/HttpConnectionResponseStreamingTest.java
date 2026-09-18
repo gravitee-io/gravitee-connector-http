@@ -58,6 +58,7 @@ public class HttpConnectionResponseStreamingTest {
 
     private static final long UPSTREAM_TRICKLE_DELAY_MS = 50;
     private static final long BODY_HANDLER_ATTACH_DELAY_MS = 20;
+    private static final long LATE_BODY_HANDLER_ATTACH_DELAY_MS = 300;
     private static final long CLIENT_RESUME_DELAY_MS = 500;
     private static final long QUIET_PERIOD_MS = 500;
     private static final long EXCHANGE_TIMEOUT_SECONDS = 10;
@@ -333,6 +334,58 @@ public class HttpConnectionResponseStreamingTest {
             assertThat(endedAfterMs.get()).isGreaterThanOrEqualTo(900L);
         } finally {
             contentLengthUpstream.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+        }
+    }
+
+    @Test
+    public void should_deliver_the_body_and_the_end_signal_when_the_upstream_response_ends_before_the_client_attaches_handlers()
+        throws Exception {
+        HttpClientOptions options = new HttpClientOptions();
+        options.setKeepAlive(false);
+        when(endpoint.getHttpClientOptions()).thenReturn(options);
+
+        NetServer completeResponseUpstream = vertx
+            .createNetServer()
+            .connectHandler(socket ->
+                socket.handler(upstreamRequest ->
+                    socket
+                        .write(
+                            Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + UPSTREAM_BODY.length() + "\r\n\r\n" + UPSTREAM_BODY)
+                        )
+                        .onComplete(written -> socket.close())
+                )
+            )
+            .listen(0)
+            .toCompletionStage()
+            .toCompletableFuture()
+            .get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+        try {
+            HttpConnection<HttpResponse> cut = new HttpConnection<>(endpoint, request);
+
+            var receivedBody = new StringBuilder();
+            var endHandlerCalls = new AtomicInteger();
+            CompletableFuture<String> bodyOnEnd = new CompletableFuture<>();
+
+            cut.responseHandler(response ->
+                vertx.setTimer(LATE_BODY_HANDLER_ATTACH_DELAY_MS, timer -> {
+                    response.bodyHandler(chunk -> receivedBody.append(chunk.toString()));
+                    response.endHandler(end -> {
+                        endHandlerCalls.incrementAndGet();
+                        bodyOnEnd.complete(receivedBody.toString());
+                    });
+                })
+            );
+
+            cut.connect(context, client, completeResponseUpstream.actualPort(), "localhost", "/", connected -> cut.end(), tracker -> {});
+
+            assertThat(bodyOnEnd.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS)).isEqualTo(UPSTREAM_BODY);
+
+            awaitQuietPeriod();
+
+            assertThat(endHandlerCalls.get()).isEqualTo(1);
+        } finally {
+            completeResponseUpstream.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
         }
     }
 

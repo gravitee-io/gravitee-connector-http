@@ -33,6 +33,7 @@ public class HttpResponse extends AbstractResponse {
 
     private Handler<HttpFrame> frameHandler;
     private Handler<Void> handlersAttachedHandler;
+    private boolean paused;
 
     private final HttpHeaders httpHeaders;
     private final HttpClientResponse httpClientResponse;
@@ -85,14 +86,23 @@ public class HttpResponse extends AbstractResponse {
 
     @Override
     public ReadStream<Buffer> pause() {
+        paused = true;
         httpClientResponse.pause();
         return this;
     }
 
     @Override
     public ReadStream<Buffer> resume() {
+        paused = false;
         httpClientResponse.resume();
         return this;
+    }
+
+    // The connector's close-recovery drain reads this to tell a downstream that has stopped asking
+    // for bytes apart from an exchange that has genuinely stalled, so a pause it will come back
+    // from does not cost the drain its budget.
+    public boolean isPaused() {
+        return paused;
     }
 
     @Override

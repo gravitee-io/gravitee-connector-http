@@ -36,6 +36,7 @@ import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,6 +62,10 @@ public class HttpConnectionResponseStreamingTest {
     private static final long LATE_BODY_HANDLER_ATTACH_DELAY_MS = 300;
     private static final long CLIENT_RESUME_DELAY_MS = 500;
     private static final long QUIET_PERIOD_MS = 500;
+    // Longer than the connector's 1000ms drain budget, so the budget expires while the downstream
+    // is still paused.
+    private static final long DOWNSTREAM_PAUSE_MS = 1_500;
+    private static final long DOWNSTREAM_CHUNK_PAUSE_MS = 50;
     private static final long EXCHANGE_TIMEOUT_SECONDS = 10;
 
     private Vertx vertx;
@@ -170,7 +175,10 @@ public class HttpConnectionResponseStreamingTest {
                 } else {
                     bodyBeforeEnd.append(chunk.toString());
                 }
+                // A client that takes one chunk at a time and comes back for the next, which is
+                // what the gateway does as downstream demand runs out and is replenished.
                 response.pause();
+                vertx.setTimer(DOWNSTREAM_CHUNK_PAUSE_MS, timer -> response.resume());
             });
             response.endHandler(end -> {
                 endSignals.incrementAndGet();
@@ -186,7 +194,7 @@ public class HttpConnectionResponseStreamingTest {
         vertx.setTimer(CLIENT_RESUME_DELAY_MS * 2, timer -> quietPeriodElapsed.complete(null));
         quietPeriodElapsed.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
 
-        assertThat(bodyBeforeEnd.toString()).isEqualTo(BODY_FIRST_PART);
+        assertThat(bodyBeforeEnd.toString()).isEqualTo(UPSTREAM_BODY);
         assertThat(endSignals.get()).isEqualTo(1);
         assertThat(chunksAfterEnd.get()).isZero();
     }
@@ -338,6 +346,59 @@ public class HttpConnectionResponseStreamingTest {
     }
 
     @Test
+    public void should_deliver_every_received_byte_when_the_downstream_pauses_for_longer_than_the_drain_budget() throws Exception {
+        // One byte more than the backend ever sends, the same device the deadline test above uses:
+        // Netty can then never complete the message, which is what makes the connection close
+        // surface as HttpClosedException and put the connector on its drain path. What is at stake
+        // here is not that missing byte but the bytes that did arrive and are still queued.
+        long declaredContentLength = UPSTREAM_BODY.length() + 1;
+        NetServer contentLengthUpstream = vertx
+            .createNetServer()
+            .connectHandler(socket ->
+                socket.handler(upstreamRequest -> {
+                    socket.write(
+                        Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + declaredContentLength + "\r\n\r\n" + BODY_FIRST_PART)
+                    );
+                    vertx.setTimer(UPSTREAM_TRICKLE_DELAY_MS, timer ->
+                        socket.write(Buffer.buffer(BODY_SECOND_PART)).onComplete(written -> socket.close())
+                    );
+                })
+            )
+            .listen(0)
+            .toCompletionStage()
+            .toCompletableFuture()
+            .get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+        try {
+            HttpConnection<HttpResponse> cut = new HttpConnection<>(endpoint, request);
+
+            var receivedBody = new StringBuilder();
+            var downstreamPaused = new AtomicBoolean();
+            CompletableFuture<String> bodyOnEnd = new CompletableFuture<>();
+
+            cut.responseHandler(response -> {
+                response.bodyHandler(chunk -> {
+                    receivedBody.append(chunk.toString());
+                    // The gateway pauses whenever downstream demand drops to zero
+                    // (FlowableProxyResponse.handleChunk), and a slow client holds that pause well
+                    // past the drain budget.
+                    if (downstreamPaused.compareAndSet(false, true)) {
+                        response.pause();
+                        vertx.setTimer(DOWNSTREAM_PAUSE_MS, timer -> response.resume());
+                    }
+                });
+                response.endHandler(end -> bodyOnEnd.complete(receivedBody.toString()));
+            });
+
+            cut.connect(context, client, contentLengthUpstream.actualPort(), "localhost", "/", connected -> cut.end(), tracker -> {});
+
+            assertThat(bodyOnEnd.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS)).isEqualTo(UPSTREAM_BODY);
+        } finally {
+            contentLengthUpstream.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+        }
+    }
+
+    @Test
     public void should_deliver_the_body_and_the_end_signal_when_the_upstream_response_ends_before_the_client_attaches_handlers()
         throws Exception {
         HttpClientOptions options = new HttpClientOptions();
@@ -349,9 +410,7 @@ public class HttpConnectionResponseStreamingTest {
             .connectHandler(socket ->
                 socket.handler(upstreamRequest ->
                     socket
-                        .write(
-                            Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + UPSTREAM_BODY.length() + "\r\n\r\n" + UPSTREAM_BODY)
-                        )
+                        .write(Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + UPSTREAM_BODY.length() + "\r\n\r\n" + UPSTREAM_BODY))
                         .onComplete(written -> socket.close())
                 )
             )

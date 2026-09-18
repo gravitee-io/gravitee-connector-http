@@ -80,11 +80,22 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // several multiples of the sampling rate so ordinary scheduling jitter cannot trip it.
     private static final long CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS = 60;
 
-    // Absolute ceiling on the drain, protecting against a backend that never stops sending.
-    // Expressed as real elapsed time rather than a number of samples because a contended event
-    // loop stretches each sample by an unbounded amount, so a sample count places no real bound
-    // on how long the exchange can be held open.
+    // Ceiling on the drain, protecting against a backend that never stops sending. Counts only the
+    // time the downstream was actually able to take bytes, not raw elapsed time: the gateway pauses
+    // the response whenever downstream demand hits zero (FlowableProxyResponse.handleChunk), and a
+    // slow client holds that pause for well over a second on a large download. Charging paused time
+    // to this budget ran it out while the downstream was asking for nothing, and the bytes already
+    // received and still queued behind the pause were then discarded (APIM-15055).
     private static final long CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS = 1_000;
+
+    // Ceiling on a downstream that pauses and never comes back, so it cannot hold the exchange -
+    // and the in-flight accounting that goes with it - open for good. Counted from the last byte
+    // actually handed downstream, so a client that keeps consuming is never cut off by it however
+    // long it takes; only one that has taken nothing at all for this long is treated as gone. Sized
+    // far past any pause a consuming client produces, and at the order of the gateway's own overall
+    // proxy request timeout, past which the gateway cancels the connection itself and the drain
+    // ends on the isCanceled() check instead.
+    private static final long CLOSED_RESPONSE_DRAIN_MAX_PAUSE_MS = 30_000;
 
     // Chunks that arrive before the downstream body handler is attached are buffered here instead
     // of discarded, up to this size; past it, further chunks are discarded and logged once instead
@@ -149,6 +160,12 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // the downstream has attached any handler at all, and the body and the end signal it is owed
     // then have to wait for that attach instead of being dropped on the floor (APIM-15055).
     private boolean downstreamEndSignalled;
+    // Drain bookkeeping, meaningful only between startDrainBookkeeping() and the end of the
+    // close-recovery drain it belongs to.
+    private long drainDeliveredByteCountAtLastCheck;
+    private long drainLastDeliveryAtNanos;
+    private long drainLastCheckAtNanos;
+    private long drainUnpausedNanos;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
         super(endpoint);
@@ -385,13 +402,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     // alive long enough for it to flow through, so wait until we know it has -
                     // see awaitDrainQuiescence - before signalling the end of the exchange.
                     response.resume();
-                    awaitDrainQuiescence(
-                        vertxContext,
-                        clientResponse,
-                        lastChunkReceivedAtNanos,
-                        tracker,
-                        System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS)
-                    );
+                    startDrainBookkeeping();
+                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker);
                 } else {
                     LOGGER.error(
                         "Unexpected error while handling backend response for request {} {} - {}",
@@ -495,10 +507,21 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private void logDrainBudgetExhausted() {
         LOGGER.warn(
-            "Ending upstream response for request {} {} after draining for {}ms while chunks were still arriving - the response body may be truncated",
+            "Ending upstream response for request {} {} after {}ms of draining with the downstream able to take bytes - {} bytes were handed downstream, the response body may be truncated",
             httpClientRequest.getMethod(),
             httpClientRequest.absoluteURI(),
-            CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS
+            CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS,
+            deliveredByteCount
+        );
+    }
+
+    private void logDrainAbandonedPausedDownstream(long pausedForMs) {
+        LOGGER.warn(
+            "Ending upstream response for request {} {} - the downstream took no byte for {}ms, {} bytes were handed downstream and the response body may be truncated",
+            httpClientRequest.getMethod(),
+            httpClientRequest.absoluteURI(),
+            pausedForMs,
+            deliveredByteCount
         );
     }
 
@@ -546,12 +569,18 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         }
     }
 
+    private void startDrainBookkeeping() {
+        drainDeliveredByteCountAtLastCheck = deliveredByteCount;
+        drainLastDeliveryAtNanos = System.nanoTime();
+        drainLastCheckAtNanos = drainLastDeliveryAtNanos;
+        drainUnpausedNanos = 0;
+    }
+
     private void awaitDrainQuiescence(
         Context vertxContext,
         HttpClientResponse clientResponse,
         AtomicLong lastChunkReceivedAtNanos,
-        Handler<Void> tracker,
-        long drainDeadlineNanos
+        Handler<Void> tracker
     ) {
         vertxContext
             .owner()
@@ -572,14 +601,36 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 }
 
                 long now = System.nanoTime();
-                boolean drainDeadlineExpired = now - drainDeadlineNanos >= 0;
+                boolean downstreamPaused = response.isPaused();
 
-                // A response with known framing (Content-Length or chunked) is only ever ended
-                // here by isUpstreamResponseFullyDelivered() above or by the deadline below: an
-                // inactivity guess can fire in a gap between two chunks that are both still to
-                // come, which is exactly how a declared-length response lost its tail (APIM-15055).
-                // Only a close-delimited response - no declared length, RFC 9112 §6.3 - has no
-                // signal other than that guess.
+                if (deliveredByteCount > drainDeliveredByteCountAtLastCheck) {
+                    drainDeliveredByteCountAtLastCheck = deliveredByteCount;
+                    drainLastDeliveryAtNanos = now;
+                }
+                if (!downstreamPaused) {
+                    drainUnpausedNanos += now - drainLastCheckAtNanos;
+                }
+                drainLastCheckAtNanos = now;
+
+                if (downstreamPaused) {
+                    long pausedForMs = TimeUnit.NANOSECONDS.toMillis(now - drainLastDeliveryAtNanos);
+                    if (pausedForMs >= CLOSED_RESPONSE_DRAIN_MAX_PAUSE_MS) {
+                        logDrainAbandonedPausedDownstream(pausedForMs);
+                        endUpstreamResponseAfterClose(clientResponse, tracker);
+                        return;
+                    }
+                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker);
+                    return;
+                }
+
+                // A response with known framing (Content-Length or chunked) is only ever ended here
+                // by isUpstreamResponseFullyDelivered() above or by the budget below: an inactivity
+                // guess can fire in a gap between two chunks that are both still to come, which is
+                // exactly how a declared-length response lost its tail (APIM-15055). Only a
+                // close-delimited response - no declared length, RFC 9112 §6.3 - has no signal other
+                // than that guess. Reached only while the downstream is unpaused, because arrivals
+                // necessarily stop while it is paused and their silence would then say nothing about
+                // whether anything is left to hand over.
                 if (!hasKnownFraming()) {
                     long quietForMs = TimeUnit.NANOSECONDS.toMillis(now - lastChunkReceivedAtNanos.get());
                     if (quietForMs >= CLOSED_RESPONSE_DRAIN_QUIET_THRESHOLD_MS) {
@@ -588,11 +639,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     }
                 }
 
-                if (drainDeadlineExpired) {
+                if (TimeUnit.NANOSECONDS.toMillis(drainUnpausedNanos) >= CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS) {
                     logDrainBudgetExhausted();
                     endUpstreamResponseAfterClose(clientResponse, tracker);
                 } else {
-                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker, drainDeadlineNanos);
+                    awaitDrainQuiescence(vertxContext, clientResponse, lastChunkReceivedAtNanos, tracker);
                 }
             });
     }

@@ -389,6 +389,75 @@ public class HttpConnectionResponseStreamingTest {
         }
     }
 
+    @Test
+    public void should_release_the_tracker_once_and_leave_the_downstream_end_to_the_gateway_when_the_connection_is_canceled_mid_response()
+        throws Exception {
+        HttpClientOptions options = new HttpClientOptions();
+        options.setKeepAlive(false);
+        when(endpoint.getHttpClientOptions()).thenReturn(options);
+
+        // Declares the whole body but only ever writes the first half and never closes, so the
+        // exchange is genuinely mid-response - with body still outstanding upstream - at the moment
+        // the connection is canceled.
+        NetServer trickleUpstream = vertx
+            .createNetServer()
+            .connectHandler(socket ->
+                socket.handler(upstreamRequest ->
+                    socket.write(
+                        Buffer.buffer("HTTP/1.1 200 OK\r\nContent-Length: " + UPSTREAM_BODY.length() + "\r\n\r\n" + BODY_FIRST_PART)
+                    )
+                )
+            )
+            .listen(0)
+            .toCompletionStage()
+            .toCompletableFuture()
+            .get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+
+        try {
+            HttpConnection<HttpResponse> cut = new HttpConnection<>(endpoint, request);
+
+            var receivedBody = new StringBuilder();
+            var endSignals = new AtomicInteger();
+            var trackerCalls = new AtomicInteger();
+            CompletableFuture<Void> canceled = new CompletableFuture<>();
+
+            cut.responseHandler(response -> {
+                response.bodyHandler(chunk -> {
+                    receivedBody.append(chunk.toString());
+                    // Canceled from the event loop, as the gateway does, while the declared body is
+                    // only half delivered.
+                    cut.cancel();
+                    canceled.complete(null);
+                });
+                response.endHandler(end -> endSignals.incrementAndGet());
+            });
+
+            cut.connect(
+                context,
+                client,
+                trickleUpstream.actualPort(),
+                "localhost",
+                "/",
+                connected -> cut.end(),
+                tracker -> trackerCalls.incrementAndGet()
+            );
+
+            canceled.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+            awaitQuietPeriod();
+
+            // Every gateway caller of Connection.cancel() has already terminated the downstream by
+            // its own hand before cancelling - FlowableProxyResponse calls subscriber.onComplete()
+            // itself, or is reacting to a cancelled Rx subscription, and ApiReactorHandler has
+            // already written an error response. An end signal from here would be a second terminal
+            // signal on a stream that is already finished, so the connector deliberately sends none.
+            assertThat(endSignals.get()).isZero();
+            assertThat(receivedBody.toString()).isEqualTo(BODY_FIRST_PART);
+            assertThat(trackerCalls.get()).isEqualTo(1);
+        } finally {
+            trickleUpstream.close().toCompletionStage().toCompletableFuture().get(EXCHANGE_TIMEOUT_SECONDS, SECONDS);
+        }
+    }
+
     private void awaitQuietPeriod() throws Exception {
         CompletableFuture<Void> quietPeriodElapsed = new CompletableFuture<>();
         vertx.setTimer(QUIET_PERIOD_MS, timer -> quietPeriodElapsed.complete(null));

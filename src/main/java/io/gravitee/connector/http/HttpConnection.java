@@ -533,6 +533,16 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         vertxContext
             .owner()
             .setTimer(CLOSED_RESPONSE_DRAIN_CHECK_DELAY_MS, timerId -> {
+                // Vert.x's endHandler has already finalized the exchange, so there is nothing left
+                // to detach or end. This is the only completion signal a chunked response has:
+                // declaredContentLength is -1 for chunked framing, so the byte-count check below
+                // can never become true and the drain would otherwise always run to the deadline
+                // and warn about a truncation that never happened. The same holds for a bodyless
+                // response (HEAD, 204, 304), which declares a length whose bytes never arrive.
+                if (upstreamResponseEnded) {
+                    return;
+                }
+
                 if (isCanceled() || isUpstreamResponseFullyDelivered()) {
                     endUpstreamResponseAfterClose(clientResponse, tracker);
                     return;

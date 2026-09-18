@@ -134,6 +134,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // of guessing from inactivity - see hasKnownFraming() and isUpstreamResponseFullyDelivered().
     private long declaredContentLength = -1;
     private boolean chunkedUpstreamResponse;
+    // Counted where a chunk reaches the downstream body handler, not where it arrives from
+    // upstream: a received chunk can still be discarded (past LOCAL_UPSTREAM_BUFFER_CAP, or with
+    // no body handler registered on a keep-alive endpoint), and counting it on arrival would let
+    // isUpstreamResponseFullyDelivered() report the body complete while the client got less.
     private long deliveredByteCount;
     // Guards against ending the exchange twice: once the close-recovery path is waiting on
     // awaitDrainQuiescence, Vert.x's own endHandler is still live and can still fire on its own
@@ -413,7 +417,6 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     private void deliverUpstreamChunk(byte[] chunkBytes) {
-        deliveredByteCount += chunkBytes.length;
         if (bufferChunksUntilBodyHandlerAttached) {
             deliverUpstreamChunkWithLocalBuffering(chunkBytes);
         } else {
@@ -425,6 +428,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         Handler<Buffer> bodyHandler = response.bodyHandler();
         if (bodyHandler != null) {
             bodyHandler.handle(Buffer.buffer(chunkBytes));
+            deliveredByteCount += chunkBytes.length;
         } else {
             logMissingBodyHandlerOnce();
         }
@@ -435,6 +439,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         if (bodyHandler != null) {
             flushBufferedUpstreamChunks(bodyHandler);
             bodyHandler.handle(Buffer.buffer(chunkBytes));
+            deliveredByteCount += chunkBytes.length;
         } else {
             bufferUpstreamChunk(chunkBytes);
         }
@@ -466,6 +471,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         byte[] chunk;
         while ((chunk = bufferedUpstreamChunks.poll()) != null) {
             bodyHandler.handle(Buffer.buffer(chunk));
+            deliveredByteCount += chunk.length;
         }
         bufferedUpstreamBytes = 0;
     }

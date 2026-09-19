@@ -31,6 +31,7 @@ import io.gravitee.gateway.api.stream.WriteStream;
 import io.gravitee.node.api.opentelemetry.Span;
 import io.gravitee.node.api.opentelemetry.http.ObservableHttpClientRequest;
 import io.gravitee.node.api.opentelemetry.http.ObservableHttpClientResponse;
+import io.gravitee.node.logging.NodeLoggerFactory;
 import io.netty.channel.ConnectTimeoutException;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
@@ -46,7 +47,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
  */
 public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnection<HttpEndpoint> {
 
-    private final Logger LOGGER = LoggerFactory.getLogger(this.getClass());
+    private final Logger LOGGER = NodeLoggerFactory.getLogger(this.getClass());
 
     private static final Set<CharSequence> HOP_HEADERS;
     private static final String SERVER_NULL_PATTERN = " for server null";

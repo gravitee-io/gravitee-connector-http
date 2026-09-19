@@ -346,6 +346,35 @@ public class HttpConnectionResponseStreamingTest {
     }
 
     @Test
+    public void should_wait_for_the_drain_deadline_instead_of_a_short_quiet_gap_when_the_upstream_response_is_chunked() throws Exception {
+        HttpConnection<HttpResponse> cut = new HttpConnection<>(endpoint, request);
+
+        var receivedBody = new StringBuilder();
+        CompletableFuture<String> bodyOnEnd = new CompletableFuture<>();
+        long start = System.nanoTime();
+        AtomicLong endedAfterMs = new AtomicLong();
+
+        cut.responseHandler(response -> {
+            response.bodyHandler(chunk -> receivedBody.append(chunk.toString()));
+            response.endHandler(end -> {
+                endedAfterMs.set(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                bodyOnEnd.complete(receivedBody.toString());
+            });
+        });
+
+        cut.connect(context, client, upstream.actualPort(), "localhost", "/", connected -> cut.end(), tracker -> {});
+
+        assertThat(bodyOnEnd.get(EXCHANGE_TIMEOUT_SECONDS, SECONDS)).isEqualTo(UPSTREAM_BODY);
+        // The terminating chunk never arrives here, so nothing tells the connector the body is
+        // complete and it has to wait out the full drain deadline (1000ms). Ending on the 60ms
+        // quiet gap instead would be faster and would silence the give-up log, but that gap is a
+        // guess that fires between two chunks still to come - the failure APIM-15055 was opened
+        // for. Chunked responses deliberately do not take it: an over-eager log costs nothing a
+        // client can see, and a body cut short costs everything.
+        assertThat(endedAfterMs.get()).isGreaterThanOrEqualTo(900L);
+    }
+
+    @Test
     public void should_deliver_every_received_byte_when_the_downstream_pauses_for_longer_than_the_drain_budget() throws Exception {
         // One byte more than the backend ever sends, the same device the deadline test above uses:
         // Netty can then never complete the message, which is what makes the connection close

@@ -140,9 +140,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     // multiplexed protocol just as it is of HTTP/1.x. Keep-alive endpoints retain the original
     // drop-and-log behavior.
     private boolean bufferChunksUntilBodyHandlerAttached;
-    // Declared upstream framing, captured when the response headers arrive. A response with
-    // either of these gives us a way to know for certain when the full body has arrived, instead
-    // of guessing from inactivity - see hasKnownFraming() and isUpstreamResponseFullyDelivered().
+    // Declared upstream framing, captured when the response headers arrive. Only a Content-Length
+    // gives the connector a completion target it can check for itself; chunked framing is complete
+    // when Vert.x decodes the terminating chunk and fires its endHandler, which the connector
+    // observes but cannot derive from a byte count - see hasKnownFraming() and
+    // isUpstreamResponseFullyDelivered().
     private long declaredContentLength = -1;
     private boolean chunkedUpstreamResponse;
     // Counted where a chunk reaches the downstream body handler, not where it arrives from
@@ -506,23 +508,40 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
     }
 
     private void logDrainBudgetExhausted() {
-        LOGGER.warn(
-            "Ending upstream response for request {} {} after {}ms of draining with the downstream able to take bytes - {} bytes were handed downstream, the response body may be truncated",
-            httpClientRequest.getMethod(),
-            httpClientRequest.absoluteURI(),
-            CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS,
-            deliveredByteCount
-        );
+        logDrainGaveUp(CLOSED_RESPONSE_DRAIN_MAX_BUDGET_MS + "ms of draining with the downstream able to take bytes");
     }
 
     private void logDrainAbandonedPausedDownstream(long pausedForMs) {
-        LOGGER.warn(
-            "Ending upstream response for request {} {} - the downstream took no byte for {}ms, {} bytes were handed downstream and the response body may be truncated",
-            httpClientRequest.getMethod(),
-            httpClientRequest.absoluteURI(),
-            pausedForMs,
-            deliveredByteCount
-        );
+        logDrainGaveUp("the downstream took no byte for " + pausedForMs + "ms");
+    }
+
+    // Only a declared Content-Length lets the connector prove a body was cut short. Chunked and
+    // close-delimited framing leave it nothing to compare the delivered byte count against, so a
+    // body handed over in full is indistinguishable from one cut short and calling it truncated is
+    // a guess - a guess that was wrong every time QA measured it, 99 warnings over 120 chunked 46MB
+    // downloads whose bodies were all byte-exact (APIM-15055). With no length to check against the
+    // line reports only what was observed, and at debug: a chunked response whose backend closes
+    // the connection reaches this ordinarily rather than exceptionally, and a warning apiece would
+    // flood production.
+    private void logDrainGaveUp(String gaveUpAfter) {
+        if (isUpstreamResponseShortOfDeclaredLength()) {
+            LOGGER.warn(
+                "Ending upstream response for request {} {} after {} - {} of the {} declared bytes reached the downstream, so the response body is truncated",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI(),
+                gaveUpAfter,
+                deliveredByteCount,
+                declaredContentLength
+            );
+        } else {
+            LOGGER.debug(
+                "Ending upstream response for request {} {} after {} - {} bytes reached the downstream, and the upstream declared no length to check that against",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI(),
+                gaveUpAfter,
+                deliveredByteCount
+            );
+        }
     }
 
     private void detachUpstreamStream(HttpClientResponse clientResponse) {
@@ -588,9 +607,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                 // Vert.x's endHandler has already finalized the exchange, so there is nothing left
                 // to detach or end. This is the only completion signal a chunked response has:
                 // declaredContentLength is -1 for chunked framing, so the byte-count check below
-                // can never become true and the drain would otherwise always run to the deadline
-                // and warn about a truncation that never happened. The same holds for a bodyless
-                // response (HEAD, 204, 304), which declares a length whose bytes never arrive.
+                // can never become true and a chunked response whose terminator never arrives runs
+                // the drain to the deadline however complete its body is. The same holds for a
+                // bodyless response (HEAD, 204, 304), which declares a length whose bytes never
+                // arrive.
                 if (upstreamResponseEnded) {
                     return;
                 }
@@ -654,6 +674,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private boolean isUpstreamResponseFullyDelivered() {
         return declaredContentLength >= 0 && deliveredByteCount >= declaredContentLength;
+    }
+
+    private boolean isUpstreamResponseShortOfDeclaredLength() {
+        return declaredContentLength >= 0 && deliveredByteCount < declaredContentLength;
     }
 
     private boolean isChunkedTransferEncoding(HttpClientResponse clientResponse) {

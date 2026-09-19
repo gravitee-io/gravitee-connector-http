@@ -20,9 +20,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.gravitee.common.http.HttpHeader;
 import io.gravitee.connector.api.AbstractEndpoint;
+import io.gravitee.node.logging.NodeLoggerFactory;
 import java.util.List;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class HttpEndpoint extends AbstractEndpoint {
 
-    private final Logger LOGGER = LoggerFactory.getLogger(HttpEndpoint.class);
+    private final Logger LOGGER = NodeLoggerFactory.getLogger(HttpEndpoint.class);
 
     @JsonProperty("proxy")
     private HttpProxy httpProxy;

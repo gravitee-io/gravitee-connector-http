@@ -35,6 +35,7 @@ import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaderNames;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
+import io.gravitee.node.logging.NodeLoggerFactory;
 import io.gravitee.node.vertx.proxy.VertxProxyOptionsUtils;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
@@ -62,7 +63,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -70,7 +70,7 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends AbstractConnector<Connection, ProxyRequest> {
 
-    private final Logger LOGGER = LoggerFactory.getLogger(AbstractConnector.class);
+    private final Logger LOGGER = NodeLoggerFactory.getLogger(AbstractConnector.class);
 
     private static final String URI_PARAM_SEPARATOR = "&";
     private static final char URI_PARAM_SEPARATOR_CHAR = '&';

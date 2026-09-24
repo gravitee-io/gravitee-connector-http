@@ -264,6 +264,12 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         int maxConnections = endpoint.getHttpClientOptions().getMaxConcurrentConnections();
         options.setMaxConnections(maxConnections);
 
+        boolean useCompression = endpoint.getHttpClientOptions().isUseCompression();
+        options.setTryUsePerFrameCompression(useCompression);
+        options.setTryUsePerMessageCompression(useCompression);
+        options.setCompressionAllowClientNoContext(useCompression);
+        options.setCompressionRequestServerNoContext(useCompression);
+
         // setVerifyHost is not on ClientOptionsBase, set it on the concrete type
         HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
         if (options.isSsl() && sslOptions != null) {

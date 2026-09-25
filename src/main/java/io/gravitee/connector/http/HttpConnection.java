@@ -37,12 +37,15 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.*;
 import io.vertx.core.internal.buffer.BufferInternal;
 import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.UnknownHostException;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -58,6 +61,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private static final Set<CharSequence> HOP_HEADERS;
     private static final String SERVER_NULL_PATTERN = " for server null";
+
+    // Past this, chunks are discarded and logged once rather than buffered without bound: pausing
+    // on overflow would need the downstream to resume us, and it was never told we paused.
+    private static final int LOCAL_UPSTREAM_BUFFER_CAP = 16 * 1024;
 
     static {
         Set<CharSequence> hopHeaders = new HashSet<>();
@@ -77,17 +84,30 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     protected HttpClientRequest httpClientRequest;
     private final ProxyRequest request;
+    private final CloseRecoveryDrain.DrainTimings drainTimings;
     private T response;
+    private CloseRecoveryDrain drain;
     private Handler<Throwable> timeoutHandler;
     private boolean canceled = false;
     private boolean transmitted = false;
     private boolean headersWritten = false;
     private boolean content = false;
+    private boolean missingBodyHandlerLogged = false;
     private String targetServer;
+    private final BufferedUpstreamChunks bufferedUpstreamChunks = new BufferedUpstreamChunks();
+    private boolean bufferThresholdExceededLogged = false;
+    // Keyed on keep-alive, not protocol: a non-keep-alive backend closes as soon as the response
+    // completes, so a chunk dropped while the handler is still being attached is never resent.
+    private boolean bufferChunksUntilBodyHandlerAttached;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
+        this(endpoint, request, CloseRecoveryDrain.DrainTimings.DEFAULT);
+    }
+
+    HttpConnection(HttpEndpoint endpoint, ProxyRequest request, CloseRecoveryDrain.DrainTimings drainTimings) {
         super(endpoint);
         this.request = request;
+        this.drainTimings = drainTimings;
     }
 
     @Override
@@ -243,6 +263,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             HttpClientResponse clientResponse = clientResponseFuture.result();
             ctx.getTracer().endWithResponse(requestSpan, new ObservableHttpClientResponse(clientResponse));
             response = createProxyResponse(clientResponse);
+            drain = new CloseRecoveryDrain(drainTimings, httpClientRequest, clientResponse, this::isCanceled, response::isPaused);
+            response.handlersAttachedHandler(attached -> completeDownstreamHandoff());
 
             if (isSse(request)) {
                 request.closeHandler(proxyConnectionClosed -> {
@@ -255,28 +277,32 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             response.cancelHandler(tracker);
 
-            // Copy body content
-            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
+            bufferChunksUntilBodyHandlerAttached = isKeepAliveDisabled();
 
-            // Signal end of the response
-            clientResponse.endHandler(event -> {
-                response.endHandler().handle(null);
-                tracker.handle(null);
+            // Copy body content
+            clientResponse.handler(event -> {
+                drain.chunkReceived();
+                deliverUpstreamChunk(event.getBytes());
             });
 
+            // Signal end of the response
+            clientResponse.endHandler(event -> endUpstreamResponse(tracker));
+
             clientResponse.exceptionHandler(throwable -> {
-                LOGGER.error(
-                    "Unexpected error while handling backend response for request {} {} - {}",
-                    httpClientRequest.getMethod(),
-                    httpClientRequest.absoluteURI(),
-                    throwable.getMessage()
-                );
-
-                if (response.endHandler() != null) {
-                    response.endHandler().handle(null);
+                var vertxContext = Vertx.currentContext();
+                if (throwable instanceof HttpClosedException && !isCanceled() && vertxContext != null) {
+                    // No resume() here: it would override a pause the downstream set on purpose
+                    // and charge that pause to the drain's unpaused budget.
+                    drain.awaitQuiescence(vertxContext, () -> endUpstreamResponseAfterClose(clientResponse, tracker));
+                } else {
+                    LOGGER.error(
+                        "Unexpected error while handling backend response for request {} {} - {}",
+                        httpClientRequest.getMethod(),
+                        httpClientRequest.absoluteURI(),
+                        throwable.getMessage()
+                    );
+                    endUpstreamResponseAfterClose(clientResponse, tracker);
                 }
-
-                tracker.handle(null);
             });
 
             clientResponse.customFrameHandler(frame ->
@@ -288,16 +314,145 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         } else {
             ctx.getTracer().endWithResponseAndError(requestSpan, clientResponseFuture.result(), clientResponseFuture.cause());
             handleException(clientResponseFuture.cause());
-            tracker.handle(null);
+            if (!isCanceled()) {
+                tracker.handle(null);
+            }
         }
 
         return response;
     }
 
+    private boolean isKeepAliveDisabled() {
+        return !endpoint.getHttpClientOptions().isKeepAlive();
+    }
+
+    private void deliverUpstreamChunk(byte[] chunkBytes) {
+        if (bufferChunksUntilBodyHandlerAttached) {
+            deliverUpstreamChunkWithLocalBuffering(chunkBytes);
+        } else {
+            deliverUpstreamChunkForKeepAliveEndpoint(chunkBytes);
+        }
+    }
+
+    private void deliverUpstreamChunkForKeepAliveEndpoint(byte[] chunkBytes) {
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            bodyHandler.handle(Buffer.buffer(chunkBytes));
+            drain.chunkDelivered(chunkBytes.length);
+        } else {
+            logMissingBodyHandlerOnce();
+        }
+    }
+
+    private void deliverUpstreamChunkWithLocalBuffering(byte[] chunkBytes) {
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            flushBufferedUpstreamChunks(bodyHandler);
+            bodyHandler.handle(Buffer.buffer(chunkBytes));
+            drain.chunkDelivered(chunkBytes.length);
+        } else {
+            bufferUpstreamChunk(chunkBytes);
+        }
+    }
+
+    private void bufferUpstreamChunk(byte[] chunkBytes) {
+        if (bufferedUpstreamChunks.sizeBytes() >= LOCAL_UPSTREAM_BUFFER_CAP) {
+            if (!bufferThresholdExceededLogged) {
+                bufferThresholdExceededLogged = true;
+                LOGGER.warn(
+                    "Discarding upstream response body for request {} {} - exceeded {} bytes buffered locally while waiting for the downstream body handler to be attached",
+                    httpClientRequest.getMethod(),
+                    httpClientRequest.absoluteURI(),
+                    LOCAL_UPSTREAM_BUFFER_CAP
+                );
+            }
+            return;
+        }
+
+        bufferedUpstreamChunks.add(chunkBytes);
+    }
+
+    private void flushBufferedUpstreamChunks(Handler<Buffer> bodyHandler) {
+        bufferedUpstreamChunks.drainTo(chunk -> {
+            bodyHandler.handle(Buffer.buffer(chunk));
+            drain.chunkDelivered(chunk.length);
+        });
+    }
+
+    private void logMissingBodyHandlerOnce() {
+        if (!missingBodyHandlerLogged) {
+            missingBodyHandlerLogged = true;
+            LOGGER.warn(
+                "Discarding upstream response body for request {} {} - no downstream body handler is registered",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
+        }
+    }
+
+    private void detachUpstreamStream(HttpClientResponse clientResponse) {
+        clientResponse.handler(null);
+        response.pause();
+    }
+
+    private void endUpstreamResponseAfterClose(HttpClientResponse clientResponse, Handler<Void> tracker) {
+        detachUpstreamStream(clientResponse);
+        endUpstreamResponse(tracker);
+    }
+
+    private void endUpstreamResponse(Handler<Void> tracker) {
+        // cancel() already released the tracker through the connection-level cancelHandler, so
+        // finalizing again here would decrement the in-flight request counter a second time.
+        if (isCanceled() || !drain.markUpstreamEnded()) {
+            return;
+        }
+
+        completeDownstreamHandoff();
+
+        // Released even while the hand-off still waits on the downstream to attach: the upstream
+        // exchange is over whether or not anyone downstream collects the response.
+        tracker.handle(null);
+    }
+
+    private void completeDownstreamHandoff() {
+        if (!drain.isUpstreamEndedAwaitingDownstream() || isCanceled()) {
+            return;
+        }
+
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            flushBufferedUpstreamChunks(bodyHandler);
+        } else if (!bufferedUpstreamChunks.isEmpty()) {
+            return;
+        }
+
+        Handler<Void> endHandler = response.endHandler();
+        if (endHandler != null) {
+            drain.markDownstreamSignalled();
+            endHandler.handle(null);
+        }
+    }
+
     @Override
     public Connection cancel() {
+        // the gateway can cancel an already-canceled connection (a downstream cancel followed by the
+        // SSE request.closeHandler), and re-firing cancelHandler would release the in-flight tracker twice.
+        if (isCanceled()) {
+            return this;
+        }
+
         this.canceled = true;
         if (this.httpClientRequest != null) {
+            // Debug rather than warn because the gateway cancels routinely - a client that
+            // disconnects mid-download, a response already ended, a policy that interrupts the
+            // chain - so a louder level would spam production on ordinary traffic. Logged only
+            // here, since a cancel before the upstream request exists resets nothing and leaves no
+            // client mid-stream.
+            LOGGER.debug(
+                "Cancelling upstream request {} {} - the request is reset and the downstream stops receiving the response body",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
             this.httpClientRequest.reset();
         }
         if (cancelHandler != null) {
@@ -441,5 +596,32 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private boolean isSse(ProxyRequest request) {
         return HttpHeaderValues.TEXT_EVENT_STREAM.contentEqualsIgnoreCase(request.headers().get(HttpHeaderNames.ACCEPT));
+    }
+
+    private static final class BufferedUpstreamChunks {
+
+        private final Deque<byte[]> chunks = new ArrayDeque<>();
+        private int sizeBytes;
+
+        void add(byte[] chunk) {
+            chunks.add(chunk);
+            sizeBytes += chunk.length;
+        }
+
+        void drainTo(Handler<byte[]> sink) {
+            byte[] chunk;
+            while ((chunk = chunks.poll()) != null) {
+                sizeBytes -= chunk.length;
+                sink.handle(chunk);
+            }
+        }
+
+        int sizeBytes() {
+            return sizeBytes;
+        }
+
+        boolean isEmpty() {
+            return chunks.isEmpty();
+        }
     }
 }

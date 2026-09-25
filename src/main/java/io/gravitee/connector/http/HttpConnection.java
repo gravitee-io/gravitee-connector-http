@@ -398,7 +398,11 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
         // Check chunk flag on the request if there are some content to push and if transfer_encoding is set
         // with chunk value
-        if (content) {
+        if (httpClientRequest.version() == HttpVersion.HTTP_2) {
+            // Transfer-Encoding is a connection-specific header forbidden in HTTP/2 (RFC 9113 §8.2.2): the body is
+            // streamed with DATA frames, and HTTP/2 peers reject the request as malformed when the header is present.
+            request.headers().remove(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING);
+        } else if (content) {
             String encoding = headers.getFirst(io.vertx.core.http.HttpHeaders.TRANSFER_ENCODING);
             if (encoding != null && encoding.contains(HttpHeadersValues.TRANSFER_ENCODING_CHUNKED)) {
                 httpClientRequest.setChunked(true);

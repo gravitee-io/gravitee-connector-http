@@ -19,6 +19,9 @@ import static io.gravitee.common.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.gravitee.common.component.Lifecycle;
@@ -41,6 +44,7 @@ import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpVersion;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -164,6 +168,29 @@ public class HttpConnectionTest {
         cut.writeUpstreamHeaders();
 
         assertThat(httpClientRequest.headers().getAll(TRACEPARENT_HEADER)).hasSize(1).containsExactly(TRACEPARENT_HEADER_VALUE);
+    }
+
+    @Test
+    public void should_not_send_transfer_encoding_to_http2_upstream_when_streaming_body() {
+        headers.set(HttpHeaderNames.TRANSFER_ENCODING, "chunked");
+        doReturn(HttpVersion.HTTP_2).when(httpClientRequest).version();
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer("body"));
+
+        assertThat(httpClientRequest.headers().contains(HttpHeaderNames.TRANSFER_ENCODING)).isFalse();
+        verify(httpClientRequest, never()).setChunked(true);
+    }
+
+    @Test
+    public void should_stream_chunked_body_to_http1_upstream() {
+        headers.set(HttpHeaderNames.TRANSFER_ENCODING, "chunked");
+        doReturn(HttpVersion.HTTP_1_1).when(httpClientRequest).version();
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer("body"));
+
+        verify(httpClientRequest).setChunked(true);
     }
 
     @Test

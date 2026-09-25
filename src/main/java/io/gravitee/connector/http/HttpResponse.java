@@ -32,6 +32,8 @@ import io.vertx.core.http.HttpClientResponse;
 public class HttpResponse extends AbstractResponse {
 
     private Handler<HttpFrame> frameHandler;
+    private Handler<Void> handlersAttachedHandler;
+    private boolean paused;
 
     private final HttpHeaders httpHeaders;
     private final HttpClientResponse httpClientResponse;
@@ -39,6 +41,32 @@ public class HttpResponse extends AbstractResponse {
     public HttpResponse(final HttpClientResponse httpClientResponse) {
         this.httpClientResponse = httpClientResponse;
         this.httpHeaders = new VertxHttpHeaders(this.httpClientResponse.headers());
+    }
+
+    public void handlersAttachedHandler(Handler<Void> handlersAttachedHandler) {
+        this.handlersAttachedHandler = handlersAttachedHandler;
+    }
+
+    @Override
+    public Response bodyHandler(Handler<Buffer> bodyHandler) {
+        super.bodyHandler(bodyHandler);
+        notifyHandlersAttached(bodyHandler);
+        return this;
+    }
+
+    @Override
+    public Response endHandler(Handler<Void> endHandler) {
+        super.endHandler(endHandler);
+        notifyHandlersAttached(endHandler);
+        return this;
+    }
+
+    // The connector defers the body flush and the end signal until this fires, so an upstream
+    // response that completes before the downstream attaches is handed over instead of dropped.
+    private void notifyHandlersAttached(Handler<?> attachedHandler) {
+        if (attachedHandler != null && handlersAttachedHandler != null) {
+            handlersAttachedHandler.handle(null);
+        }
     }
 
     @Override
@@ -58,14 +86,23 @@ public class HttpResponse extends AbstractResponse {
 
     @Override
     public ReadStream<Buffer> pause() {
+        paused = true;
         httpClientResponse.pause();
         return this;
     }
 
     @Override
     public ReadStream<Buffer> resume() {
+        paused = false;
         httpClientResponse.resume();
         return this;
+    }
+
+    // The connector's close-recovery drain reads this to tell a downstream that has stopped asking
+    // for bytes apart from an exchange that has genuinely stalled, so a pause it will come back
+    // from does not cost the drain its budget.
+    public boolean isPaused() {
+        return paused;
     }
 
     @Override

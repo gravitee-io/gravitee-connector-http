@@ -16,6 +16,7 @@
 package io.gravitee.connector.http;
 
 import io.gravitee.common.http.HttpHeadersValues;
+import io.gravitee.node.logging.NodeLoggerFactory;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.vertx.core.Context;
 import io.vertx.core.http.HttpClientRequest;
@@ -24,7 +25,6 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Tracks one upstream exchange from active to upstream-ended to downstream-signalled, and decides
@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
  */
 final class CloseRecoveryDrain {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CloseRecoveryDrain.class);
+    private static final Logger LOGGER = NodeLoggerFactory.getLogger(CloseRecoveryDrain.class);
 
     // Only a sampling rate: the quiet threshold, not this, decides when the exchange is quiescent.
     private static final long CHECK_DELAY_MS = 15;

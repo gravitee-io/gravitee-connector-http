@@ -52,6 +52,10 @@ public class WebSocketConnection extends AbstractHttpConnection<HttpEndpoint> {
         wsHopHeaders.add(HttpHeaderNames.TE);
         wsHopHeaders.add(HttpHeaderNames.TRAILER);
 
+        // Extensions are negotiated per hop: the upstream must only see what the gateway's own
+        // client is configured to handle, not what the downstream client offered.
+        wsHopHeaders.add(HttpHeaderNames.SEC_WEBSOCKET_EXTENSIONS);
+
         WS_HOP_HEADERS = Collections.unmodifiableSet(wsHopHeaders);
     }
 

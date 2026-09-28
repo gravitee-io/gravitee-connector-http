@@ -179,6 +179,20 @@ public class HttpConnectionTest {
         cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer("body"));
 
         assertThat(httpClientRequest.headers().contains(HttpHeaderNames.TRANSFER_ENCODING)).isFalse();
+        // Vert.x still needs to know the body has no declared length: without marking the HTTP/2 request as
+        // chunked, it requires a Content-Length before the first write and fails with an IllegalStateException.
+        verify(httpClientRequest).setChunked(true);
+    }
+
+    @Test
+    public void should_not_mark_http2_upstream_request_chunked_when_body_has_content_length() {
+        headers.set(HttpHeaderNames.CONTENT_LENGTH, "4");
+        doReturn(HttpVersion.HTTP_2).when(httpClientRequest).version();
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> new AtomicInteger(1).decrementAndGet());
+
+        cut.write(io.gravitee.gateway.api.buffer.Buffer.buffer("body"));
+
+        assertThat(httpClientRequest.headers().contains(HttpHeaderNames.TRANSFER_ENCODING)).isFalse();
         verify(httpClientRequest, never()).setChunked(true);
     }
 

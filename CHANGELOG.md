@@ -1,3 +1,10 @@
+## [5.0.11](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.10...5.0.11) (2026-09-28)
+
+
+### Bug Fixes
+
+* **websocket:** stop forwarding Sec-WebSocket-Extensions to the upstream hop ([260db7a](https://github.com/gravitee-io/gravitee-connector-http/commit/260db7a1fb19cf664b2337f605feb85ee95e75a2))
+
 ## [5.0.10](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...5.0.10) (2026-09-28)
 
 

@@ -1,3 +1,10 @@
+## [6.0.1](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.0...6.0.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **websocket:** negotiate permessage-deflate on the upstream hop ([86bd3e2](https://github.com/gravitee-io/gravitee-connector-http/commit/86bd3e223f75af8b120f6a0eae8dcc1b0d6ed5c9))
+
 # [6.0.0](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...6.0.0) (2026-06-23)
 
 

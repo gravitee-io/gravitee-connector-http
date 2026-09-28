@@ -1,3 +1,11 @@
+## [5.0.10](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.9...5.0.10) (2026-09-28)
+
+
+### Bug Fixes
+
+* do not send Transfer-Encoding header to HTTP/2 upstreams ([c0cc257](https://github.com/gravitee-io/gravitee-connector-http/commit/c0cc257b4e6b2ed821a9d73c68a7aaf72db1b3a3))
+* mark HTTP/2 upstream requests chunked when streaming a body ([0d86d3d](https://github.com/gravitee-io/gravitee-connector-http/commit/0d86d3d149ef442784b36e68f6fb786c8b06b41c))
+
 ## [5.0.9](https://github.com/gravitee-io/gravitee-connector-http/compare/5.0.8...5.0.9) (2026-03-17)
 
 

@@ -37,6 +37,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.*;
 import io.vertx.core.internal.buffer.BufferInternal;
 import java.net.ConnectException;
@@ -77,17 +78,25 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     protected HttpClientRequest httpClientRequest;
     private final ProxyRequest request;
+    private final CloseRecoveryDrain.DrainTimings drainTimings;
     private T response;
+    private CloseRecoveryDrain drain;
     private Handler<Throwable> timeoutHandler;
     private boolean canceled = false;
     private boolean transmitted = false;
     private boolean headersWritten = false;
     private boolean content = false;
+    private boolean missingBodyHandlerLogged = false;
     private String targetServer;
 
     public HttpConnection(HttpEndpoint endpoint, ProxyRequest request) {
+        this(endpoint, request, CloseRecoveryDrain.DrainTimings.DEFAULT);
+    }
+
+    HttpConnection(HttpEndpoint endpoint, ProxyRequest request, CloseRecoveryDrain.DrainTimings drainTimings) {
         super(endpoint);
         this.request = request;
+        this.drainTimings = drainTimings;
     }
 
     @Override
@@ -243,6 +252,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             HttpClientResponse clientResponse = clientResponseFuture.result();
             ctx.getTracer().endWithResponse(requestSpan, new ObservableHttpClientResponse(clientResponse));
             response = createProxyResponse(clientResponse);
+            drain = new CloseRecoveryDrain(drainTimings, httpClientRequest, clientResponse, this::isCanceled, response::isPaused);
+            response.handlersAttachedHandler(attached -> completeDownstreamHandoff());
 
             if (isSse(request)) {
                 request.closeHandler(proxyConnectionClosed -> {
@@ -256,27 +267,26 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
             response.cancelHandler(tracker);
 
             // Copy body content
-            clientResponse.handler(event -> response.bodyHandler().handle(Buffer.buffer(event.getBytes())));
+            clientResponse.handler(event -> deliverUpstreamChunk(event.getBytes()));
 
             // Signal end of the response
-            clientResponse.endHandler(event -> {
-                response.endHandler().handle(null);
-                tracker.handle(null);
-            });
+            clientResponse.endHandler(event -> endUpstreamResponse(tracker));
 
             clientResponse.exceptionHandler(throwable -> {
-                LOGGER.error(
-                    "Unexpected error while handling backend response for request {} {} - {}",
-                    httpClientRequest.getMethod(),
-                    httpClientRequest.absoluteURI(),
-                    throwable.getMessage()
-                );
-
-                if (response.endHandler() != null) {
-                    response.endHandler().handle(null);
+                var vertxContext = Vertx.currentContext();
+                if (throwable instanceof HttpClosedException && !isCanceled() && vertxContext != null) {
+                    // No resume() here: it would override a pause the downstream set on purpose
+                    // and charge that pause to the drain's unpaused budget.
+                    drain.awaitQuiescence(vertxContext, () -> endUpstreamResponseAfterClose(clientResponse, tracker));
+                } else {
+                    LOGGER.error(
+                        "Unexpected error while handling backend response for request {} {} - {}",
+                        httpClientRequest.getMethod(),
+                        httpClientRequest.absoluteURI(),
+                        throwable.getMessage()
+                    );
+                    endUpstreamResponseAfterClose(clientResponse, tracker);
                 }
-
-                tracker.handle(null);
             });
 
             clientResponse.customFrameHandler(frame ->
@@ -288,16 +298,91 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
         } else {
             ctx.getTracer().endWithResponseAndError(requestSpan, clientResponseFuture.result(), clientResponseFuture.cause());
             handleException(clientResponseFuture.cause());
-            tracker.handle(null);
+            if (!isCanceled()) {
+                tracker.handle(null);
+            }
         }
 
         return response;
     }
 
+    private void deliverUpstreamChunk(byte[] chunkBytes) {
+        Handler<Buffer> bodyHandler = response.bodyHandler();
+        if (bodyHandler != null) {
+            bodyHandler.handle(Buffer.buffer(chunkBytes));
+            drain.chunkDelivered(chunkBytes.length);
+        } else {
+            logMissingBodyHandlerOnce();
+        }
+    }
+
+    private void logMissingBodyHandlerOnce() {
+        if (!missingBodyHandlerLogged) {
+            missingBodyHandlerLogged = true;
+            LOGGER.warn(
+                "Discarding upstream response body for request {} {} - no downstream body handler is registered",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
+        }
+    }
+
+    private void detachUpstreamStream(HttpClientResponse clientResponse) {
+        clientResponse.handler(null);
+        response.pause();
+    }
+
+    private void endUpstreamResponseAfterClose(HttpClientResponse clientResponse, Handler<Void> tracker) {
+        detachUpstreamStream(clientResponse);
+        endUpstreamResponse(tracker);
+    }
+
+    private void endUpstreamResponse(Handler<Void> tracker) {
+        // cancel() already released the tracker through the connection-level cancelHandler, so
+        // finalizing again here would decrement the in-flight request counter a second time.
+        if (isCanceled() || !drain.markUpstreamEnded()) {
+            return;
+        }
+
+        completeDownstreamHandoff();
+
+        // Released even while the hand-off still waits on the downstream to attach: the upstream
+        // exchange is over whether or not anyone downstream collects the response.
+        tracker.handle(null);
+    }
+
+    private void completeDownstreamHandoff() {
+        if (!drain.isUpstreamEndedAwaitingDownstream() || isCanceled()) {
+            return;
+        }
+
+        Handler<Void> endHandler = response.endHandler();
+        if (endHandler != null) {
+            drain.markDownstreamSignalled();
+            endHandler.handle(null);
+        }
+    }
+
     @Override
     public Connection cancel() {
+        // the gateway can cancel an already-canceled connection (a downstream cancel followed by the
+        // SSE request.closeHandler), and re-firing cancelHandler would release the in-flight tracker twice.
+        if (isCanceled()) {
+            return this;
+        }
+
         this.canceled = true;
         if (this.httpClientRequest != null) {
+            // Debug rather than warn because the gateway cancels routinely - a client that
+            // disconnects mid-download, a response already ended, a policy that interrupts the
+            // chain - so a louder level would spam production on ordinary traffic. Logged only
+            // here, since a cancel before the upstream request exists resets nothing and leaves no
+            // client mid-stream.
+            LOGGER.debug(
+                "Cancelling upstream request {} {} - the request is reset and the downstream stops receiving the response body",
+                httpClientRequest.getMethod(),
+                httpClientRequest.absoluteURI()
+            );
             this.httpClientRequest.reset();
         }
         if (cancelHandler != null) {

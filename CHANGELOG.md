@@ -1,3 +1,10 @@
+## [6.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.2...6.0.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* prevent upstream response body loss on non-keep-alive and chunked endpoints ([53f2fff](https://github.com/gravitee-io/gravitee-connector-http/commit/53f2fff90a320646ed12f456af5be71c4ca638c4))
+
 ## [6.0.2](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.1...6.0.2) (2026-09-28)
 
 

@@ -35,7 +35,7 @@
 
     <properties>
         <gravitee-apim.version>4.12.20</gravitee-apim.version>
-        <vertx.version>5.0.9</vertx.version>
+        <vertx.version>5.2.1</vertx.version>
 
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/connectors</publish-folder-path>

@@ -133,6 +133,14 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
             if (event.succeeded()) {
                 httpClientRequest = event.result();
+                if (isCanceled()) {
+                    // The connection was canceled while the request was still waiting for the pool: nobody will
+                    // send nor read it, so give the pool slot back right away instead of holding it until timeout.
+                    httpClientRequest.reset();
+                    tracker.handle(null);
+                    connectionHandler.handle(null);
+                    return;
+                }
                 observableHttpClientRequest.httpClientRequest(httpClientRequest);
 
                 httpClientRequest.response(response -> {
@@ -284,6 +292,10 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     @Override
     public Connection cancel() {
+        // Cancelling twice must not release the in-flight tracker twice
+        if (isCanceled()) {
+            return this;
+        }
         this.canceled = true;
         if (this.httpClientRequest != null) {
             this.httpClientRequest.reset();

@@ -21,6 +21,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
@@ -51,6 +52,7 @@ import io.gravitee.node.opentelemetry.tracer.noop.NoOpTracer;
 import io.gravitee.reporter.api.http.Metrics;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
@@ -160,6 +162,21 @@ public class HttpConnectionTest {
         when(client.request(any())).thenReturn(Future.succeededFuture(httpClientRequest));
         when(context.getTracer()).thenReturn(new Tracer(null, new NoOpTracer()));
         when(request.uri()).thenReturn("http://host.fr");
+    }
+
+    @Test
+    public void should_release_upstream_request_when_canceled_before_it_is_created() {
+        Promise<HttpClientRequest> pendingRequest = Promise.promise();
+        when(client.request(any())).thenReturn(pendingRequest.future());
+        AtomicInteger trackedRequests = new AtomicInteger(1);
+
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, result -> trackedRequests.decrementAndGet());
+        cut.cancel();
+        // The pool grants a connection only after the downstream gave up
+        pendingRequest.complete(httpClientRequest);
+
+        verify(httpClientRequest).reset(anyLong());
+        assertThat(trackedRequests).hasValue(0);
     }
 
     @Test

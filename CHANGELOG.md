@@ -1,3 +1,10 @@
+## [6.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.3...6.0.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* release the pool slot when canceled before the upstream request exists ([9c14bc5](https://github.com/gravitee-io/gravitee-connector-http/commit/9c14bc520e94724b6022503386243bab77adedca))
+
 ## [6.0.3](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.2...6.0.3) (2026-10-05)
 
 

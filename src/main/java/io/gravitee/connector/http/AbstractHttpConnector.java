@@ -59,6 +59,7 @@ import java.net.URLStreamHandler;
 import java.util.Base64;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -184,9 +185,27 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         this.httpClientOptions = this.createHttpClientOptions();
         this.poolOptions = this.createPoolOptions();
         this.webSocketOptions = this.createWebSocketOptions();
-        this.httpClientFactory = thread -> Vertx.currentContext().owner().createHttpClient(httpClientOptions, poolOptions);
-        this.webSocketClientFactory = thread -> Vertx.currentContext().owner().createWebSocketClient(webSocketOptions);
+        this.httpClientFactory = thread ->
+            Vertx.currentContext()
+                .owner()
+                .createHttpClient(new HttpClientOptions(httpClientOptions).setShared(true).setName(uniqueClientName()), poolOptions);
+        this.webSocketClientFactory = thread ->
+            Vertx.currentContext()
+                .owner()
+                .createWebSocketClient(new WebSocketClientOptions(webSocketOptions).setShared(true).setName(uniqueClientName()));
         printHttpClientConfiguration();
+    }
+
+    /**
+     * Clients are created as Vert.x shared clients, each under its own name so that they never share a pool: Vert.x 5.0
+     * keeps a non-shared client registered on the close future of the context that created it even after {@code close()},
+     * so the clients of every redeployed endpoint pile up until the node stops. A shared client is registered through a
+     * nested close future that unregisters itself on close.
+     * <p>
+     * Fixed upstream in Vert.x 5.2: go back to plain non-shared clients when upgrading.
+     */
+    private String uniqueClientName() {
+        return "connector-http-" + UUID.randomUUID();
     }
 
     /**

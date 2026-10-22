@@ -59,10 +59,9 @@ import java.net.URLStreamHandler;
 import java.util.Base64;
 import java.util.Map;
 import java.util.StringJoiner;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 
 /**
@@ -85,11 +84,12 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
     protected final E endpoint;
     private final Configuration configuration;
 
-    private HttpClientOptions httpClientOptions;
-    private WebSocketClientOptions webSocketOptions;
-    private PoolOptions poolOptions;
-    private volatile Function<Thread, HttpClient> httpClientFactory;
-    private volatile Function<Thread, WebSocketClient> webSocketClientFactory;
+    private static final AtomicLong CLIENT_IDS = new AtomicLong();
+
+    // Written once in doStart(), read from every event loop that serves a request.
+    private volatile HttpClientOptions httpClientOptions;
+    private volatile WebSocketClientOptions webSocketOptions;
+    private volatile PoolOptions poolOptions;
 
     /**
      * Dummy {@link URLStreamHandler} implementation to avoid unknown protocol issue with default implementation
@@ -144,7 +144,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             final AbstractHttpConnection<HttpEndpoint> connection = create(request);
 
             if (connection instanceof WebSocketConnection) {
-                final WebSocketClient webSocketClient = webSocketClients.computeIfAbsent(Thread.currentThread(), webSocketClientFactory);
+                final WebSocketClient webSocketClient = webSocketClients.computeIfAbsent(Thread.currentThread(), thread ->
+                    newWebSocketClient()
+                );
                 requestTracker.incrementAndGet();
 
                 // Connect to the upstream
@@ -159,7 +161,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
                 );
             } else {
                 // Grab an instance of the HTTP client
-                final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), httpClientFactory);
+                final HttpClient client = httpClients.computeIfAbsent(Thread.currentThread(), thread -> newHttpClient());
                 requestTracker.incrementAndGet();
 
                 // Connect to the upstream
@@ -185,27 +187,40 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         this.httpClientOptions = this.createHttpClientOptions();
         this.poolOptions = this.createPoolOptions();
         this.webSocketOptions = this.createWebSocketOptions();
-        this.httpClientFactory = thread ->
-            Vertx.currentContext()
-                .owner()
-                .createHttpClient(new HttpClientOptions(httpClientOptions).setShared(true).setName(uniqueClientName()), poolOptions);
-        this.webSocketClientFactory = thread ->
-            Vertx.currentContext()
-                .owner()
-                .createWebSocketClient(new WebSocketClientOptions(webSocketOptions).setShared(true).setName(uniqueClientName()));
         printHttpClientConfiguration();
     }
 
     /**
-     * Clients are created as Vert.x shared clients, each under its own name so that they never share a pool: Vert.x 5.0
-     * keeps a non-shared client registered on the close future of the context that created it even after {@code close()},
-     * so the clients of every redeployed endpoint pile up until the node stops. A shared client is registered through a
-     * nested close future that unregisters itself on close.
+     * Creates the HTTP client of the current event loop as a Vert.x shared client under its own name, so that it never
+     * shares a pool with another client.
      * <p>
-     * Fixed upstream in Vert.x 5.2: go back to plain non-shared clients when upgrading.
+     * Vert.x 5.0 keeps a non-shared client registered on the close future of the context that created it even after
+     * {@code close()}, so the clients of every redeployed endpoint pile up until the node stops. A shared client is
+     * registered through a nested close future that unregisters itself on close. Options that already ask for sharing are
+     * left untouched.
+     * <p>
+     * Fixed upstream in Vert.x 5.2: create plain clients from the options again when upgrading, here and in
+     * {@link #newWebSocketClient()}.
      */
+    private HttpClient newHttpClient() {
+        HttpClientOptions options = new HttpClientOptions(httpClientOptions);
+        if (!options.isShared()) {
+            options.setShared(true).setName(uniqueClientName());
+        }
+        return Vertx.currentContext().owner().createHttpClient(options, poolOptions);
+    }
+
+    /** Same workaround as {@link #newHttpClient()}, for the WebSocket client of the current event loop. */
+    private WebSocketClient newWebSocketClient() {
+        WebSocketClientOptions options = new WebSocketClientOptions(webSocketOptions);
+        if (!options.isShared()) {
+            options.setShared(true).setName(uniqueClientName());
+        }
+        return Vertx.currentContext().owner().createWebSocketClient(options);
+    }
+
     private String uniqueClientName() {
-        return "connector-http-" + UUID.randomUUID();
+        return "connector-http-" + endpoint.name() + "-" + CLIENT_IDS.incrementAndGet();
     }
 
     /**
@@ -251,6 +266,10 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         }
     }
 
+    /**
+     * The options every HTTP client of this connector is created from. Unless they ask for sharing, each client created
+     * from them is turned into a uniquely named Vert.x shared client: see {@link #newHttpClient()}.
+     */
     protected HttpClientOptions createHttpClientOptions() throws EndpointException {
         HttpClientOptions options = new HttpClientOptions();
         configureCommonOptions(options);

@@ -1,3 +1,10 @@
+## [6.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.4...6.0.5) (2026-10-22)
+
+
+### Bug Fixes
+
+* release closed http and websocket clients by creating them as uniquely named shared clients ([1988b18](https://github.com/gravitee-io/gravitee-connector-http/commit/1988b18d1dbb47988de39369354b0a9eca1dc2cc))
+
 ## [6.0.4](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.3...6.0.4) (2026-10-12)
 
 

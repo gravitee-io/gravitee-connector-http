@@ -37,6 +37,7 @@ import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.node.api.configuration.Configuration;
 import io.gravitee.node.logging.NodeLoggerFactory;
 import io.gravitee.node.vertx.proxy.VertxProxyOptionsUtils;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientOptions;
@@ -52,6 +53,7 @@ import io.vertx.core.net.PemTrustOptions;
 import io.vertx.core.net.PfxOptions;
 import io.vertx.core.net.ProxyOptions;
 import io.vertx.core.net.ProxyType;
+import io.vertx.core.net.TrustOptions;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -289,13 +291,13 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         // setVerifyHost is not on ClientOptionsBase, set it on the concrete type
         HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
         if (options.isSsl() && sslOptions != null) {
-            options.setVerifyHost(sslOptions.isHostnameVerifier());
+            options.setVerifyHost(sslOptions.isHostnameVerifier() && !sslOptions.isTrustAll());
         }
 
         return options;
     }
 
-    private WebSocketClientOptions createWebSocketOptions() throws EndpointException {
+    WebSocketClientOptions createWebSocketOptions() throws EndpointException {
         WebSocketClientOptions options = new WebSocketClientOptions();
         configureCommonOptions(options);
 
@@ -311,7 +313,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
         // setVerifyHost is not on ClientOptionsBase, set it on the concrete type
         HttpClientSslOptions sslOptions = endpoint.getHttpClientSslOptions();
         if (options.isSsl() && sslOptions != null) {
-            options.setVerifyHost(sslOptions.isHostnameVerifier());
+            options.setVerifyHost(sslOptions.isHostnameVerifier() && !sslOptions.isTrustAll());
         }
 
         return options;
@@ -358,7 +360,9 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             }
 
             if (sslOptions != null) {
-                options.setTrustAll(sslOptions.isTrustAll());
+                if (sslOptions.isTrustAll()) {
+                    trustAll(options);
+                }
 
                 // Client trust configuration
                 if (!sslOptions.isTrustAll() && sslOptions.getTrustStore() != null) {
@@ -499,6 +503,16 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
      * @param protocol the protocol to check
      * @return true if protocol is secure, false otherwise
      */
+    /**
+     * Accept any server certificate. The Vert.x {@code trustAll} flag is not used: its trust manager is not an
+     * {@link javax.net.ssl.X509ExtendedTrustManager}, which Netty 4.2.17+ refuses with OpenSSL on Java 25. Hostname
+     * verification is turned off by the caller: with any certificate accepted, it adds nothing.
+     */
+    static void trustAll(ClientOptionsBase options) {
+        options.setTrustAll(false);
+        options.setTrustOptions(TrustOptions.wrap(InsecureTrustManagerFactory.INSTANCE.getTrustManagers()[0]));
+    }
+
     protected static boolean isSecureProtocol(String protocol) {
         return protocol.charAt(protocol.length() - 1) == 's' && protocol.length() > 2;
     }
@@ -549,7 +563,7 @@ public abstract class AbstractHttpConnector<E extends HttpEndpoint> extends Abst
             LOGGER.debug(
                 "\tSSL {" +
                     "TrustAll='" +
-                    httpClientOptions.isTrustAll() +
+                    (endpoint.getHttpClientSslOptions() != null && endpoint.getHttpClientSslOptions().isTrustAll()) +
                     '\'' +
                     ", VerifyHost='" +
                     httpClientOptions.isVerifyHost() +

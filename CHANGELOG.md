@@ -1,3 +1,10 @@
+## [6.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.5...6.0.6) (2026-11-25)
+
+
+### Bug Fixes
+
+* use an extended trust manager and skip hostname verification with trustAll ([c98aa09](https://github.com/gravitee-io/gravitee-connector-http/commit/c98aa091ffefc42db1251c213faaff85d400654b))
+
 ## [6.0.5](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.4...6.0.5) (2026-10-22)
 
 

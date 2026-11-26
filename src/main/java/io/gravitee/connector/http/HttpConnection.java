@@ -59,6 +59,7 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
 
     private static final Set<CharSequence> HOP_HEADERS;
     private static final String SERVER_NULL_PATTERN = " for server null";
+    static final String CANCELED_BEFORE_SENT_MESSAGE = "Request canceled before it was sent to the backend";
 
     static {
         Set<CharSequence> hopHeaders = new HashSet<>();
@@ -137,6 +138,8 @@ public class HttpConnection<T extends HttpResponse> extends AbstractHttpConnecti
                     // The connection was canceled while the request was still waiting for the pool: nobody will
                     // send nor read it, so give the pool slot back right away instead of holding it until timeout.
                     httpClientRequest.reset();
+                    // Nothing else ends the span on this path: no exception handler is attached to the request yet.
+                    ctx.getTracer().endOnError(requestSpan, CANCELED_BEFORE_SENT_MESSAGE);
                     tracker.handle(null);
                     connectionHandler.handle(null);
                     return;

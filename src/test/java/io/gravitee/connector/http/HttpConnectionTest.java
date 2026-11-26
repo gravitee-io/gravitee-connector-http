@@ -20,7 +20,9 @@ import static io.gravitee.common.http.HttpHeaders.CONTENT_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -130,6 +132,22 @@ public class HttpConnectionTest {
 
         verify(httpClientRequest).reset(anyLong());
         assertThat(trackedRequests).hasValue(0);
+    }
+
+    @Test
+    void should_end_the_request_span_when_canceled_before_the_upstream_request_is_created() {
+        Promise<HttpClientRequest> pendingRequest = Promise.promise();
+        when(client.request(any())).thenReturn(pendingRequest.future());
+        var requestSpan = mock(Span.class);
+        var nodeTracer = mock(io.gravitee.node.api.opentelemetry.Tracer.class);
+        when(nodeTracer.startSpanFrom(any(), any())).thenReturn(requestSpan);
+        when(context.getTracer()).thenReturn(new Tracer(null, nodeTracer));
+
+        cut.connect(context, client, getAvailablePort(), "host", "/", unused -> {}, unused -> {});
+        cut.cancel();
+        pendingRequest.complete(httpClientRequest);
+
+        verify(nodeTracer).endOnError(any(), eq(requestSpan), eq(HttpConnection.CANCELED_BEFORE_SENT_MESSAGE));
     }
 
     @Test

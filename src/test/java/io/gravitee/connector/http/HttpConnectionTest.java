@@ -180,6 +180,20 @@ public class HttpConnectionTest {
     }
 
     @Test
+    void should_end_the_request_span_when_canceled_before_the_upstream_request_is_created() {
+        Promise<HttpClientRequest> pendingRequest = Promise.promise();
+        when(client.request(any())).thenReturn(pendingRequest.future());
+        var requestSpan = mock(Span.class);
+        var nodeTracer = givenTracerStartingSpan(requestSpan);
+
+        connectUpstream();
+        cut.cancel();
+        pendingRequest.complete(httpClientRequest);
+
+        verify(nodeTracer).endOnError(any(), eq(requestSpan), eq(HttpConnection.CANCELED_BEFORE_SENT_MESSAGE));
+    }
+
+    @Test
     public void should_set_metrics_message_with_vertx_connection_exception() {
         final Metrics requestMetrics = Metrics.on(System.currentTimeMillis()).build();
         requestMetrics.setApi("api-id");

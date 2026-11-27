@@ -1,3 +1,10 @@
+## [6.0.7](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.6...6.0.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* end the upstream span when canceled before the request is sent ([684a275](https://github.com/gravitee-io/gravitee-connector-http/commit/684a27526dacb7bc8a35c9cdc022e64f8a9c12e7))
+
 ## [6.0.6](https://github.com/gravitee-io/gravitee-connector-http/compare/6.0.5...6.0.6) (2026-11-25)
 
 
